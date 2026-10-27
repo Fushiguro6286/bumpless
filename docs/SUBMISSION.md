@@ -62,6 +62,8 @@ Point Bumpless at a repo and a target version (or let the GitHub Action do it on
 
 - pydantic v1 → v2 and openai 0.28 → 1.x migrations green on our fixtures, with every change cited to an
   official source and covered by tests (all-Ultra benchmark: 5/5 green, 37/37 broken tests fixed, $0.71 total).
+- A real Dependabot PR fixed end to end by the GitHub Action: it detected the red major bump, migrated on the
+  Actions runner, pushed the commit and commented the report (0 → 32 tests passing).
 - Verified change coverage and characterization tests: evidence, not just a green check.
 - A zero-shot SQLAlchemy 1.4 → 2.0 migration went green on its first try, and we published the runs that
   didn't.

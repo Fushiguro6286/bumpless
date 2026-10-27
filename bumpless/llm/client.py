@@ -1,6 +1,7 @@
 """Token Factory LLM client: one `chat()` that routes, tracks tokens/cost, enforces the budget,
 and optionally parses + validates JSON output."""
 
+import asyncio
 import json
 import re
 import time
@@ -8,7 +9,7 @@ from functools import cache
 from pathlib import Path
 
 import yaml
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, RateLimitError
 from pydantic import BaseModel, ValidationError
 
 from bumpless import events
@@ -40,6 +41,7 @@ def cost_usd(tier: str, prompt_tokens: int, completion_tokens: int) -> float:
 
 
 _THINK = re.compile(r"<think>.*?</think>", re.S)
+RATE_LIMIT_WAITS_S = (10, 20, 40)
 
 
 def strip_reasoning(text: str) -> str:
@@ -133,10 +135,18 @@ class LLM:
             )
         model = self.cfg.models[tier]
         t0 = time.perf_counter()
-        resp = await self.client.chat.completions.create(
-            model=model, messages=messages, max_tokens=max_tokens, temperature=temperature,
-            **({} if reasoning else {"extra_body": {"chat_template_kwargs": {"enable_thinking": False}}}),
-        )
+        # The SDK's own retries span seconds; per-minute limits (e.g. free API tiers) need longer waits.
+        for wait in (*RATE_LIMIT_WAITS_S, None):
+            try:
+                resp = await self.client.chat.completions.create(
+                    model=model, messages=messages, max_tokens=max_tokens, temperature=temperature,
+                    **({} if reasoning else {"extra_body": {"chat_template_kwargs": {"enable_thinking": False}}}),
+                )
+                break
+            except RateLimitError:
+                if wait is None:
+                    raise
+                await asyncio.sleep(wait)
         latency = time.perf_counter() - t0
         pt = resp.usage.prompt_tokens if resp.usage else 0
         ct = resp.usage.completion_tokens if resp.usage else 0

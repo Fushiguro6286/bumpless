@@ -66,7 +66,8 @@ tier at a time. `--routing all-ultra` sends everything to Ultra, for comparison.
 | Migration plan, final review | Ultra | 41 + 39 | $0.33 + $0.36 |
 | Diagnose test failures and repair | Ultra | 135 | $2.99 |
 
-\*All runs made while building and benchmarking this project (46 runs incl. 4 PR-comment sessions and 1 Radar scan; 1,195 calls; $5.60). These include
+\*All runs on Token Factory while building and benchmarking this project, counted before the credit ran out
+on 2026-10-27; later runs on the NVIDIA free tier are not included (46 runs incl. 4 PR-comment sessions and 1 Radar scan; 1,195 calls; $5.60). These include
 all-Ultra benchmark runs, which put every task on Ultra. Most of the money goes to Ultra repairing failed
 tests, so a better first edit is the cheapest improvement. That is also why tiered routing's savings are smaller
 than the per-token prices suggest (see [Results](#results)).
@@ -114,29 +115,47 @@ Full tables, per-run IDs and every benchmark run: [benchmarks/RESULTS.md](benchm
 `benchmarks/plot.py` from the stored results. Five fixture repos (3 pydantic v1 → v2, 2 openai 0.28 → 1.x; 37 repo
 tests broken by the bump). Benchmark runs reuse the saved recipes, so they measure migration, not research.
 
+On **Nebius Token Factory** (Nemotron 3 Nano / Super / Ultra):
+
 | | Runs | Green | Tests fixed | Total cost (5 repos) | Median time |
 |---|---|---|---|---|---|
 | All-Ultra | 1 | 5/5 | 37/37 | $0.71 | 120 s |
 | Tiered (Nano → Super → Ultra) | 4 | 3, 5, 3, 3 of 5 | 29–37 of 37 | $0.51–$0.68 | 134 s (latest) |
 
+On the **NVIDIA API catalog free tier**, after the Token Factory credit ran out. Nemotron 3 Nano and Super are
+listed there but not callable on a trial key, so the Nano and Super tiers ran Nemotron 3.5 Lightning 30B-A3B and
+Nemotron 3.5 Super 120B-A12B; Ultra is the same Nemotron 3 Ultra. Costs are Token Factory list prices for the
+tokens used, not money spent.
+
+| | Runs | Green | Tests fixed | Total cost (est.) | Median time |
+|---|---|---|---|---|---|
+| Tiered | 1 | 5/5 | 37/37 | $0.40 | 317 s |
+| All-Ultra | 1 | 3/5 (one stopped by a provider timeout) | 27/37 | $0.56 | 475 s |
+
 What this does and doesn't show:
 
-- **Tiered routing is cheaper (by 4–28%) but, so far, less reliable than all-Ultra on these fixtures.** One
-  tiered run matched all-Ultra (5/5); the others left 2 repos partial. The runs used different code versions (see
-  RESULTS.md), and each mode was run only a few times. The all-Ultra rerun on the latest code was stopped when
-  the Token Factory account ran out of credit.
+- **Tiered routing is cheaper in every comparison (4–28% on Token Factory, 29% on the NVIDIA free tier).
+  Reliability varies between runs:** on Token Factory one tiered run matched all-Ultra (5/5) and the others left 2
+  repos partial or failed; on the free tier tiered went 5/5 and all-Ultra 3/5 (one failure was an API timeout,
+  the other `openai_moderator`, where every edit attempt failed). The runs used different code versions and
+  models (see RESULTS.md), and each mode was run only a few times, so treat these as indicative.
 - Median verified change coverage was 100% in every benchmark run.
 - Two fixes came out of reading the partial runs. Edits now run with reasoning off: Nano/Super had been using
   their whole 16k-token budget thinking before writing an edit, and this cut tiered median time from 286 s to
   134 s. One-line SEARCH fragments may now grow into multi-line replacements: this was why `openai_moderator`
-  failed under tiered routing. The second fix is unit-tested but has not been re-benchmarked yet.
+  failed under tiered routing. With that fix, tiered `openai_moderator` went green on the free tier.
 - **Recipe reuse:** the same pydantic migration on a second repo cost $0.077 in 161 s with the recipe, vs $0.083
   in 394 s for the first run, which did the research (runs `48225699b6` → `a18cf7556b`).
 - **Zero-shot SQLAlchemy 1.4 → 2.0** (no recipe; `benchmarks/fixtures/sqlalchemy_notes`): 3 runs: green
   (29/29 tests, $0.19, via repair rather than the rulebook), failed (it applied optional "new style" rules that
   broke working code), partial (26/29, $0.42). Those runs led to two fixes. Verification now only applies
   *required* changes. The summarize prompt stopped models answering `NONE` on guide pages full of code. A
-  4th run on the fixed code was stopped by the same credit limit.
+  4th run on the fixed code was stopped by the same credit limit. On the NVIDIA free tier: a 5th run failed when
+  Super wrote invalid rulebook JSON 3 times (the last retry now goes to Ultra), and a 6th hit the free tier's
+  rate limit (the client now waits it out). The 7th went **green**: 6/6 repo tests and 26/26 recorded behaviors,
+  100% verified change coverage, 12 of 13 changes citing a verified rule, $0.17 est., 1,170 s (run
+  `0adca37e9f`, saved as a replay). It saved a SQLAlchemy recipe, so later SQLAlchemy runs are no longer
+  zero-shot.
 
 ## Quick start
 
@@ -219,12 +238,14 @@ text is passed to models as a request and is never executed.
 - Works and was run end to end: the CLI pipeline, the web UI against a local server, recipe reuse and freshness,
   Radar, replays, the benchmark harness, and the `@bumpless` conversation through the API (revert, explain and
   revise were each tested on a fixture run).
-- **GitHub Action, partly run:** on [bumpless-demo](https://github.com/Fushiguro6286/bumpless-demo), Dependabot
-  opened [PR #1](https://github.com/Fushiguro6286/bumpless-demo/pull/1) (pydantic 1.10.18 → 2.14.1, tests red).
-  The workflow installed Bumpless from this repo, detected the red major bump and commented on the PR. It ran
-  before the API-key secrets were added, so it posted the setup error and failed the job, as designed. **Not run
-  yet:** the migration itself on Actions, pushing the fix to the PR branch, and the `@bumpless` comment job on
-  GitHub.
+- **GitHub Action, run end to end:** on [bumpless-demo](https://github.com/Fushiguro6286/bumpless-demo),
+  Dependabot opened [PR #1](https://github.com/Fushiguro6286/bumpless-demo/pull/1) (pydantic 1.10.18 → 2.14.1,
+  tests red). The workflow detected the red major bump, ran Bumpless on the Actions runner (NVIDIA API catalog
+  models), pushed the migration commit to the PR branch and commented the report: 0 → 32 tests passing, 93.5%
+  verified change coverage, $0.075 est., 342 s. Before the secrets were added, the same workflow posted a setup
+  error and failed the job, as designed. **Limits:** a push made with the workflow's `GITHUB_TOKEN` does not start
+  new workflow runs (a GitHub rule), so the PR's own test check still shows the Dependabot commit's red result
+  until the next push. **Not run yet:** the `@bumpless` comment job on GitHub (tested through the API only).
 - **Hosted deployment:** the app image (`Dockerfile`) was built and checked locally with no keys (replays,
   benchmarks, recipes work; live runs refused with a message). Not deployed to a public URL yet.
 - **Not implemented:** the Nebius Serverless Jobs executor (`EXECUTOR=nebius` raises a clear error; use `docker`).

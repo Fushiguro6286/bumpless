@@ -66,3 +66,8 @@ Notes collected while building Bumpless. Concrete and dated.
   404 "Function ...: Not found for account" on a trial key. Listing a model is not proof it can be called; `bumpless doctor` pings each tier
   for this reason. Working substitutes: `nemotron-3.5-lightning-30b-a3b` (Nano class), `nemotron-3.5-super-vl-120b-a12b` (Super class),
   and `nemotron-3-ultra-550b-a55b`. `chat_template_kwargs.enable_thinking=false` works; reasoning comes back in `reasoning_content`.
+- 2026-10-28: the trial tier rate-limits bursts (429 after ~30 parallel Nano calls in 11 s). The OpenAI SDK's built-in
+  retries span seconds, so the client now waits 10/20/40 s on a 429 before giving up. Nemotron 3.5 Super wrote invalid
+  rulebook JSON 3 times in a row on SQLAlchemy; the last retry now goes one tier up.
+- 2026-10-28: example edit blocks in our prompts used real-looking rule ids (`SEARCH R001`, `SEARCH R003`), and models
+  copied them as citations. A `RULE_ID` placeholder fixed it (the next run cited 4 different relevant rules).

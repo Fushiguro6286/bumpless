@@ -90,3 +90,31 @@ async def test_chat_json_last_retry_goes_one_tier_up():
     llm = LLM(client=fake)
     assert (await llm.chat("rulebook", [], schema=Out)).answer == 1
     assert [c["tier"] for c in llm.calls] == ["super", "super", "ultra"]
+
+
+async def test_rate_limit_waits_then_retries(monkeypatch):
+    import httpx
+    from openai import RateLimitError
+
+    from bumpless.llm import client as client_mod
+
+    waits = []
+
+    async def no_sleep(s):
+        waits.append(s)
+
+    monkeypatch.setattr(client_mod.asyncio, "sleep", no_sleep)
+    fake = FakeClient(["ok"])
+    real = fake.chat.completions.create
+    calls = {"n": 0}
+
+    async def flaky(**kw):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            resp = httpx.Response(429, request=httpx.Request("POST", "http://x"))
+            raise RateLimitError("rate limited", response=resp, body=None)
+        return await real(**kw)
+
+    fake.chat.completions.create = flaky
+    assert await LLM(client=fake).chat("plan", []) == "ok"
+    assert waits == [client_mod.RATE_LIMIT_WAITS_S[0]]
