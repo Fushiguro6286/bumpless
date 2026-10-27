@@ -22,6 +22,7 @@ import pathlib
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
+sys.path.insert(1, str(pathlib.Path(__file__).resolve().parents[2]))  # repo root, as under pytest
 from _harness import dump, observe  # noqa: E402,F401
 
 if "pytest" not in sys.modules:  # plain run: apply the repo's conftest setup (pytest loads conftests itself)

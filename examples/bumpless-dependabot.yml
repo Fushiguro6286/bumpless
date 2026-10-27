@@ -1,0 +1,52 @@
+# Copy to .github/workflows/bumpless.yml in your repository.
+# Secrets: add NEBIUS_API_KEY and TAVILY_API_KEY as *Dependabot* secrets (Settings > Secrets > Dependabot);
+# workflows triggered by Dependabot cannot read Actions secrets. Add them as Actions secrets too for manual runs.
+name: Bumpless
+
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      package: {description: "Package (e.g. pydantic)", required: true}
+      target: {description: 'Target spec (e.g. ">=2,<3")', required: true}
+
+permissions:
+  contents: write        # push the migration commit to the PR branch
+  pull-requests: write   # comment the report
+
+jobs:
+  bumpless:
+    if: github.actor == 'dependabot[bot]' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref }}
+          fetch-depth: 0
+
+      - name: Read Dependabot metadata
+        id: meta
+        if: github.event_name == 'pull_request'
+        uses: dependabot/fetch-metadata@v2
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Do the tests already pass?
+        id: tests
+        run: |
+          uv venv -q && . .venv/bin/activate
+          if ls requirements*.txt >/dev/null 2>&1; then uv pip install -q $(printf -- '-r %s ' requirements*.txt); else uv pip install -q -e .; fi
+          uv pip install -q pytest
+          if python -m pytest -q; then echo "red=false" >> "$GITHUB_OUTPUT"; else echo "red=true" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Bumpless
+        if: steps.tests.outputs.red == 'true' && (github.event_name == 'workflow_dispatch' || startsWith(steps.meta.outputs.update-type, 'version-update:semver-major'))
+        uses: YOUR_GITHUB_USER/bumpless/action@main
+        with:
+          package: ${{ inputs.package || steps.meta.outputs.dependency-names }}
+          target: ${{ inputs.target || format('=={0}', steps.meta.outputs.new-version) }}
+          base-ref: ${{ github.event.pull_request.base.sha || github.sha }}
+          pr-number: ${{ github.event.pull_request.number }}
+          nebius-api-key: ${{ secrets.NEBIUS_API_KEY }}
+          tavily-api-key: ${{ secrets.TAVILY_API_KEY }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}

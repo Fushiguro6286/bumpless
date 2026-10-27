@@ -25,3 +25,18 @@ Notes collected while building Bumpless. Concrete and dated.
   penalty or a lower default max_tokens would help. Our escalation to Super/Ultra recovers.
 - Nano answering from memory about pydantic v2 invented changes ("Field aliases now always replace...").
   Grounding every rule in a fetched page is necessary, not optional.
+- Nano (reasoning on or off) answered `NONE` ("no breaking changes") for every 40k-char chunk of the official
+  openai v1 migration guide (a GitHub Discussion whose body arrives as one huge Markdown table cell). Super
+  (reasoning off) extracted precise OLD/NEW code from the same chunk for ~$0.005. We now re-read official guide
+  pages one tier up when Nano finds nothing. A "this content is long/structured, consider a bigger model" signal,
+  or Nano robustness to table-wrapped prose, would help.
+- With reasoning off, Super/Nano are fast and good at extraction tasks; `chat_template_kwargs.enable_thinking=false`
+  cut our research step from 236 s to 137 s. Worth documenting prominently on Token Factory.
+
+## Tavily (2026-10-27, later)
+- GitHub Discussions pages come back with lots of UI boilerplate ("Uh oh! There was an error while loading.
+  Please reload this page." repeated, `{{title}}` template placeholders) and the post body flattened into a table
+  cell. Stripping known GitHub chrome in `raw_content` would make these pages much easier for models to use.
+- Results are only as official as the domain filter: `include_domains=["github.com"]` for "openai migration guide"
+  returned community repos alongside `openai/openai-python/discussions/742`; we rank by the package's own
+  repo prefix from PyPI metadata.

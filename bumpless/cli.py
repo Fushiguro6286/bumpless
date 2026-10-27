@@ -94,6 +94,7 @@ def run(
     routing: str = typer.Option("tiered", help="tiered | all-ultra"),
     executor: str = typer.Option(None, help="docker | nebius | local (default: $EXECUTOR)"),
     open_pr: bool = typer.Option(False, "--open-pr", help="Push a branch and open a PR (needs GITHUB_TOKEN)"),
+    out_dir: str = typer.Option(None, help="Also copy bumpless.patch, report.md and result.json here"),
 ) -> None:
     """Migrate a repo to a new major version of a package."""
     from bumpless import events
@@ -148,6 +149,17 @@ def run(
     elif o.get("report"):
         console.print(f"  report: {o['report']}")
         console.print(f"  patch:  {o['patch']}")
+    if out_dir:
+        import json
+        import shutil
+        from pathlib import Path
+
+        dest = Path(out_dir)
+        dest.mkdir(parents=True, exist_ok=True)
+        for key in ("patch", "report"):
+            if o.get(key) and Path(o[key]).exists():
+                shutil.copy(o[key], dest)
+        (dest / "result.json").write_text(json.dumps(result, indent=1, default=str), encoding="utf-8")
     if result["status"] == "failed":
         raise typer.Exit(1)
 

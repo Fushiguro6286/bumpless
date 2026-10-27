@@ -1,0 +1,91 @@
+name: Bumpless
+description: Finish the dependency upgrade Dependabot started - migrate the code, prove it with tests, comment a report.
+branding: {icon: arrow-up-circle, color: green}
+
+inputs:
+  package:
+    description: Package that was upgraded (e.g. pydantic)
+    required: true
+  target:
+    description: Version spec to migrate to (e.g. "==2.9.2" or ">=2,<3")
+    required: true
+  base-ref:
+    description: Commit before the bump (the PR base). Bumpless migrates from here and applies the result to the PR branch.
+    required: true
+  pr-number:
+    description: PR to comment on (empty = no comment)
+    required: false
+    default: ""
+  routing:
+    description: tiered | all-ultra
+    required: false
+    default: tiered
+  nebius-api-key:
+    description: Nebius Token Factory API key
+    required: true
+  tavily-api-key:
+    description: Tavily API key
+    required: true
+  github-token:
+    description: Token with contents:write and pull-requests:write
+    required: true
+
+outputs:
+  status:
+    description: green | partial | failed
+    value: ${{ steps.run.outputs.status }}
+
+runs:
+  using: composite
+  steps:
+    - uses: astral-sh/setup-uv@v6
+
+    - name: Install Bumpless (from this action's repository)
+      shell: bash
+      run: uv tool install --editable "$GITHUB_ACTION_PATH/.."
+
+    - name: Migrate
+      id: run
+      shell: bash
+      env:
+        NEBIUS_API_KEY: ${{ inputs.nebius-api-key }}
+        TAVILY_API_KEY: ${{ inputs.tavily-api-key }}
+        EXECUTOR: local   # the Actions runner is the sandbox
+        PACKAGE: ${{ inputs.package }}
+        TARGET: ${{ inputs.target }}
+        BASE_REF: ${{ inputs.base-ref }}
+        ROUTING: ${{ inputs.routing }}
+      run: |
+        set -euo pipefail
+        base="$RUNNER_TEMP/bumpless-base"; out="$RUNNER_TEMP/bumpless-out"
+        git worktree add --detach "$base" "$BASE_REF"
+        set +e
+        bumpless run "$base" --package "$PACKAGE" --to "$TARGET" --routing "$ROUTING" --out-dir "$out"
+        set -e
+        status=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['status'])" "$out/result.json" 2>/dev/null || echo failed)
+        echo "status=$status" >> "$GITHUB_OUTPUT"
+        echo "Bumpless status: $status"
+
+    - name: Commit the migration to the PR branch
+      if: steps.run.outputs.status != 'failed'
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: |
+        set -euo pipefail
+        git config user.name "bumpless[bot]"
+        git config user.email "bumpless@users.noreply.github.com"
+        # The patch is base -> migrated; the PR branch already has the version bump, so apply with a 3-way merge.
+        git am --3way "$RUNNER_TEMP/bumpless-out/bumpless.patch" || { git am --abort; echo "::error::patch did not apply"; exit 1; }
+        git push origin "HEAD:${GITHUB_HEAD_REF}"
+
+    - name: Comment the report
+      if: inputs.pr-number != '' && always()
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        PR: ${{ inputs.pr-number }}
+      run: |
+        report="$RUNNER_TEMP/bumpless-out/report.md"
+        if [ -f "$report" ]; then gh pr comment "$PR" --body-file "$report"
+        else gh pr comment "$PR" --body "Bumpless could not complete this migration. See the workflow log: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"; fi

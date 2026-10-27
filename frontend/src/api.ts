@@ -46,6 +46,22 @@ export interface Recipe {
   avg_reused_run_cost: number | null; path: string;
 }
 
+export interface BenchRow {
+  name: string; kind: string; package: string; run_id: string; status: "green" | "partial" | "failed"; error: string | null;
+  old_version: string | null; new_version: string | null; tests_failing_before_fix: number; tests_fixed: number;
+  characterization_observations: number; characterization_pass_rate: number | null; coverage_percent: number | null;
+  duration_s: number; cost_usd: number; cost_by_tier: Record<string, number>; escalations: number; recipe_reused: boolean;
+  manual_review: number;
+}
+
+export interface BenchSummary {
+  repos: number; green: number; partial: number; failed: number; success_rate: number | null; tests_fixed: number;
+  tests_failing_before_fix: number; median_characterization_pass_rate: number | null; median_coverage_percent: number | null;
+  median_duration_s: number | null; median_cost_usd: number | null; total_cost_usd: number; escalations: number;
+}
+
+export interface BenchResult { bench_id: string; routing: string; created_at: number; summary: BenchSummary; runs: BenchRow[] }
+
 async function req<T>(url: string, init?: RequestInit): Promise<T> {
   const r = await fetch(url, init);
   if (!r.ok) {
@@ -62,6 +78,7 @@ export const api = {
   run: (id: string) => req<RunInfo>(`/api/runs/${id}`),
   report: (id: string) => req<string>(`/api/runs/${id}/report`),
   recipes: () => req<Recipe[]>("/api/recipes"),
+  bench: () => req<BenchResult[]>("/api/bench"),
   start: (body: { fixture?: string; repo?: string; package: string; target: string; routing: string }) =>
     req<{ run_id: string }>("/api/runs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
 };

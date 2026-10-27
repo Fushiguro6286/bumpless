@@ -162,3 +162,10 @@ async def stream_events(run_id: str, request: Request) -> StreamingResponse:
 @router.get("/recipes")
 def list_recipes() -> list[dict]:
     return store.stats()
+
+
+@router.get("/bench")
+def list_bench() -> list[dict]:
+    """Stored benchmark results (benchmarks/results/*.json), newest first."""
+    from bumpless.bench import all_results
+    return all_results()
