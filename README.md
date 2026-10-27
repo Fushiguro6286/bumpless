@@ -2,6 +2,8 @@
 
 **Dependabot bumps the version. Bumpless makes it pass.**
 
+**Live demo:** https://bumpless.onrender.com (recorded real runs; the free host sleeps when idle, so the first visit can take about a minute)
+
 Dependabot opens a PR that bumps `pydantic` from 1.x to 2.x, and CI goes red. Someone now has to read the
 migration guide, find every affected call, rewrite it, and hope the tests cover it. Bumpless does that work and
 shows its evidence:
@@ -246,8 +248,9 @@ text is passed to models as a request and is never executed.
   error and failed the job, as designed. **Limits:** a push made with the workflow's `GITHUB_TOKEN` does not start
   new workflow runs (a GitHub rule), so the PR's own test check still shows the Dependabot commit's red result
   until the next push. **Not run yet:** the `@bumpless` comment job on GitHub (tested through the API only).
-- **Hosted deployment:** the app image (`Dockerfile`) was built and checked locally with no keys (replays,
-  benchmarks, recipes work; live runs refused with a message). Not deployed to a public URL yet.
+- **Hosted demo:** https://bumpless.onrender.com on Render's free plan, deployed with no API keys. Checked: every page, the 5 replays,
+  benchmarks and recipes load; live runs are refused with a message pointing to the replays. Live runs on the
+  hosted server have not been run (the free plan's 512 MB is likely too small for a migration).
 - **Not implemented:** the Nebius Serverless Jobs executor (`EXECUTOR=nebius` raises a clear error; use `docker`).
 - Benchmarks are on fixture repos written for this project. Real-world repos are not benchmarked yet.
 - Python + pytest only. Code paths that no test executes can only be verified by reading, and the report marks

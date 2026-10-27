@@ -1,5 +1,7 @@
 # Deploying the hosted demo
 
+Live: https://bumpless.onrender.com (Render free plan, no API keys: replays only).
+
 The `Dockerfile` at the repo root builds the web app (API + frontend). Checked locally with no API keys: the
 home page, run pages, benchmarks, recipes and all 4 recorded runs work, and live runs are refused with a clear
 message. Live runs inside the container (keys set) have not been run yet.
