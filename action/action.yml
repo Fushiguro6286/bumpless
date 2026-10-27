@@ -96,6 +96,21 @@ runs:
         GH_TOKEN: ${{ inputs.github-token }}
         PR: ${{ inputs.pr-number }}
       run: |
-        report="$RUNNER_TEMP/bumpless-out/report.md"
-        if [ -f "$report" ]; then gh pr comment "$PR" --body-file "$report"
-        else gh pr comment "$PR" --body "Bumpless could not complete this migration. See the workflow log: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"; fi
+        out="$RUNNER_TEMP/bumpless-out"
+        if [ -f "$out/report.md" ]; then gh pr comment "$PR" --body-file "$out/report.md"
+        else
+          {
+            echo "Bumpless could not complete this migration."
+            if [ -s "$out/error.txt" ]; then echo; echo '```'; head -c 1500 "$out/error.txt"; echo; echo '```'; fi
+            echo
+            echo "Workflow log: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          } > "$RUNNER_TEMP/bumpless-failed.md"
+          gh pr comment "$PR" --body-file "$RUNNER_TEMP/bumpless-failed.md"
+        fi
+
+    - name: Fail the job if the migration failed
+      if: steps.run.outputs.status == 'failed'
+      shell: bash
+      run: |
+        echo "::error::Bumpless could not complete the migration (see the Migrate step)"
+        exit 1

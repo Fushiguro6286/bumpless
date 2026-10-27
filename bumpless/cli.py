@@ -97,10 +97,28 @@ def run(
     out_dir: str = typer.Option(None, help="Also copy bumpless.patch, report.md and result.json here"),
 ) -> None:
     """Migrate a repo to a new major version of a package."""
+    from pathlib import Path
+
     from bumpless import events
+    from bumpless.llm.client import ModelConfigError
     from bumpless.pipeline.run import run_migration
 
-    asyncio.run(check_models())
+    def fail(message: str) -> None:
+        """A clear one-line error (the GitHub Action posts error.txt on the PR) instead of a traceback."""
+        console.print(f"[red]✗ {escape(message)}[/]")
+        if out_dir:
+            Path(out_dir).mkdir(parents=True, exist_ok=True)
+            (Path(out_dir) / "error.txt").write_text(message, encoding="utf-8")
+        raise typer.Exit(1)
+
+    try:
+        asyncio.run(check_models())
+    except ModelConfigError as e:
+        import os
+
+        hint = (" In GitHub Actions: add NEBIUS_API_KEY and TAVILY_API_KEY under Settings → Secrets and variables → "
+                "Dependabot (for Dependabot PRs) and → Actions (for comments and manual runs).")
+        fail(str(e).split(" Copy .env.example")[0] + hint if os.environ.get("GITHUB_ACTIONS") else str(e))
     events.add_listener(_printer)
     result = asyncio.run(run_migration(repo, package, to, routing=routing, executor=executor, open_pr=open_pr))
     t = result["tests"]
@@ -152,7 +170,6 @@ def run(
     if out_dir:
         import json
         import shutil
-        from pathlib import Path
 
         dest = Path(out_dir)
         dest.mkdir(parents=True, exist_ok=True)
@@ -160,6 +177,8 @@ def run(
             if o.get(key) and Path(o[key]).exists():
                 shutil.copy(o[key], dest)
         (dest / "result.json").write_text(json.dumps(result, indent=1, default=str), encoding="utf-8")
+        if result["error"]:
+            (dest / "error.txt").write_text(result["error"], encoding="utf-8")
     if result["status"] == "failed":
         raise typer.Exit(1)
 
