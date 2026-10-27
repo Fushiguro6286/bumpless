@@ -58,6 +58,15 @@ def test_apply_single_line_fragment():
     assert apply_block(src, "    json.loads(user.json())\n", "    json.loads(user.model_dump_json())\n") == \
         "def f(user):\n    return json.loads(user.model_dump_json())\n"
     assert apply_block("a.json()\nb.json()\n", "x.json()\n", "y") is None
+    # a fragment that grows into several lines (regression: openai_moderator, benchmark 20261027-175218)
+    src = "    resp = openai.Completion.create(model=m,\n                                    max_tokens=1)\n"
+    out = apply_block(src, "openai.Completion.create(\n", "client.with_options(timeout=5).completions.create(\n")
+    assert out == "    resp = client.with_options(timeout=5).completions.create(model=m,\n" \
+                  "                                    max_tokens=1)\n"
+    out = apply_block(src, "openai.Completion.create(\n", "client.completions.create(\n        timeout=5,\n")
+    assert out.startswith("    resp = client.completions.create(\n        timeout=5,model=m,")
+    compile("if 1:\n" + out, "x.py", "exec")  # still valid Python
+    assert apply_block("a = f(1)\nb = f(2)\n", "f(\n", "g(\n  x,\n") is None  # ambiguous fragment: occurs twice
 
 
 def test_scan_follows_one_import_hop(tmp_path):

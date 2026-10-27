@@ -50,8 +50,11 @@ def summarize(result: dict) -> dict:
     green = repo_passed(t.get("after"), len(char_after)) if "after" in t else red
     broken = max(0, old - red)
     cov = result.get("coverage") or {}
+    err = result.get("error") or ""
+    # An account/budget stop says nothing about the migration: don't count it as a failed migration.
+    infra = any(s in err for s in ("402", "Payment Required", "Run budget of"))
     return {
-        "status": result["status"], "error": result.get("error"),
+        "status": "infra_error" if infra else result["status"], "error": result.get("error"),
         "old_version": result.get("old_version"), "new_version": result.get("new_version"),
         "tests_failing_before_fix": broken,
         "tests_fixed": max(0, min(broken, green - red)),
@@ -73,8 +76,10 @@ def _median(xs):
 
 
 def aggregate(rows: list[dict]) -> dict:
+    infra = sum(r["status"] == "infra_error" for r in rows)
+    rows = [r for r in rows if r["status"] != "infra_error"]
     n = len(rows)
-    by = {s: sum(r["status"] == s for r in rows) for s in ("green", "partial", "failed")}
+    by = {s: sum(r["status"] == s for r in rows) for s in ("green", "partial", "failed")} | {"infra_errors": infra}
     rates = [r["characterization_pass_rate"] for r in rows]
     return {
         "repos": n, **by, "success_rate": round(by["green"] / n, 3) if n else None,

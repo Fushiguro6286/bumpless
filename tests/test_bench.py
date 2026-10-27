@@ -34,6 +34,14 @@ def test_aggregate_medians_and_rates():
     assert a["total_cost_usd"] == pytest.approx(0.3)
 
 
+def test_out_of_credit_runs_are_not_failed_migrations():
+    broke = _result("failed", []) | {"error": "APIStatusError: Error code: 402 - Payment Required: ..."}
+    rows = [summarize(_result("green", [])), summarize(broke)]
+    assert rows[1]["status"] == "infra_error"
+    a = aggregate(rows)
+    assert (a["repos"], a["green"], a["failed"], a["infra_errors"], a["success_rate"]) == (1, 1, 0, 1, 1.0)
+
+
 def test_real_repos_must_pin_a_sha(tmp_path):
     f = tmp_path / "repos.yaml"
     f.write_text("repos:\n  - {name: x, kind: real, source: 'https://github.com/a/b', package: p, to: '>=2'}\n")

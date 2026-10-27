@@ -43,7 +43,8 @@ def table(r: dict) -> str:
 
 def summary(r: dict) -> str:
     s = r["summary"]
-    return (f"- **{s['green']}/{s['repos']} green** ({s['partial']} partial, {s['failed']} failed)\n"
+    infra = f"; {s['infra_errors']} stopped by an account/budget error, not counted" if s.get("infra_errors") else ""
+    return (f"- **{s['green']}/{s['repos']} green** ({s['partial']} partial, {s['failed']} failed{infra})\n"
             f"- Tests fixed: {s['tests_fixed']}/{s['tests_failing_before_fix']}\n"
             f"- Median verified change coverage: {fmt(s['median_coverage_percent'], '%')}\n"
             f"- Median characterization pass rate: {pct(s['median_characterization_pass_rate'])}\n"
@@ -92,6 +93,11 @@ def main() -> None:
         if saving is not None:
             parts += [f"Tiered routing cost **{saving:.0%} less** than all-Ultra (${t['total_cost_usd']:.3f} vs "
                       f"${u['total_cost_usd']:.3f}) with {t['green']}/{t['repos']} vs {u['green']}/{u['repos']} green.", ""]
+        tc, uc = latest["tiered"].get("commit"), latest["all-ultra"].get("commit")
+        if tc != uc:
+            parts += [f"**Not like-for-like:** these two runs used different code (tiered `{tc}`, all-Ultra `{uc}`).", ""]
+        parts += ["Each mode was run once per code version, and results vary between runs of the same code (see "
+                  "All benchmark runs), so treat single-run differences as indicative only.", ""]
     for mode, r in latest.items():
         parts += [f"## Routing: {mode} (`{r['bench_id']}`)", "", summary(r), "", table(r), ""]
         first = [x["cost_usd"] for x in r["runs"] if not x["recipe_reused"]]

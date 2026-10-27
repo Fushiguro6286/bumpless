@@ -47,9 +47,11 @@ def apply_block(text: str, search: str, replace: str) -> str | None:
     """Exact match first, then a whitespace-tolerant line match (re-indenting the replacement)."""
     if search.strip() and search in text:
         return text.replace(search, replace, 1)
-    # A fragment of one line (e.g. "user.json()"): replace it if it occurs exactly once.
+    # A fragment of one line (e.g. "user.json()" or "openai.Completion.create("): replace it if it occurs exactly
+    # once. The replacement may span lines (a call growing new arguments); the syntax check after editing catches
+    # a replacement that doesn't fit.
     frag = search.strip()
-    if frag and "\n" not in frag and "\n" not in replace.strip() and text.count(frag) == 1:
+    if frag and "\n" not in frag and text.count(frag) == 1:
         return text.replace(frag, replace.strip(), 1)
     s_lines = search.rstrip("\n").split("\n")
     while s_lines and not s_lines[0].strip():
