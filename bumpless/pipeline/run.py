@@ -41,8 +41,9 @@ def final_status(ctx: RunContext) -> str:
         return "green"
     if not repo_failing and after.passed >= ctx.tests["old"].passed:
         return "partial"  # repo tests green, but recorded behavior changed or a guardrail fired
-    before = len(verify.new_failures(ctx, ctx.tests["new_before"]))
-    return "partial" if len(remaining) < before or after.passed > ctx.tests["new_before"].passed else "failed"
+    before = [t for t in verify.new_failures(ctx, ctx.tests["new_before"]) if not t.startswith(CHAR)]
+    improved = len(repo_failing) < len(before) or after.repo_passed > ctx.tests["new_before"].repo_passed
+    return "partial" if improved else "failed"
 
 
 def tavily_usage(ctx: RunContext) -> dict:

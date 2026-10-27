@@ -2,7 +2,7 @@
  "package": "pydantic",
  "from": "1",
  "to": "2",
- "recipe_version": 2,
+ "recipe_version": 3,
  "created_at": "2026-10-27T10:45:07+00:00",
  "checked_at": "2026-10-27T10:53:46+00:00",
  "official_pages": 3,
@@ -510,6 +510,48 @@
    "verified": true,
    "confidence": 1.0,
    "learned_from_run": "c0d43e0639"
+  },
+  {
+   "id": "R037",
+   "title": "Replace inner Config class with model_config = ConfigDict(...) and rename orm_mode to from_attributes",
+   "old_pattern": "class MyModel(BaseModel):\n    class Config:\n        orm_mode = True\n        extra = 'forbid'\n        frozen = True\n        validate_assignment = True\n        arbitrary_types_allowed = True",
+   "new_pattern": "from pydantic import ConfigDict\n\nclass MyModel(BaseModel):\n    model_config = ConfigDict(\n        from_attributes=True,\n        extra='forbid',\n        frozen=True,\n        validate_assignment=True,\n        arbitrary_types_allowed=True\n    )",
+   "detection_hint": "class\\s+Config:\\s*\\n(?:\\s*\\w+\\s*=\\s*.+\\n)+",
+   "notes": "All config keys move from inner Config class to model_config = ConfigDict(...). Key renames: orm_mode -> from_attributes. Other keys (extra, frozen, validate_assignment, arbitrary_types_allowed) keep names but move into ConfigDict. The old inner Config class is ignored in v2.",
+   "source_url": "https://pydantic.dev/docs/validation/2.4/concepts/models",
+   "evidence": "(Formerly known as “ORM Mode”/`from_orm`.)\n\nPydantic models can also be created from arbitrary class instances by reading the instance attributes corresponding to the model field names. One common application of this functionality is integration with object-relational mappings (ORMs).\n\nTo do this, set the config attribute `model_config['from_attributes'] = True`.",
+   "source_official": true,
+   "verified": true,
+   "confidence": 1.0,
+   "learned_from_run": "4d29297ddb"
+  },
+  {
+   "id": "R038",
+   "title": "Replace removed model methods: dict(), from_orm(), parse_obj(), parse_raw(), construct()",
+   "old_pattern": "user = User(id=1, name='Jane')\ndata = user.dict()\nobj = User.from_orm(orm_obj)\nobj = User.parse_obj({'id': 1})\nobj = User.parse_raw(json_bytes)\nobj = User.construct(id=1, name='Jane')",
+   "new_pattern": "user = User(id=1, name='Jane')\ndata = user.model_dump()\nobj = User.model_validate(orm_obj, from_attributes=True)\nobj = User.model_validate({'id': 1})\nobj = User.model_validate_json(json_bytes)\nobj = User.model_construct(id=1, name='Jane')",
+   "detection_hint": "\\b(dict\\(|from_orm\\(|parse_obj\\(|parse_raw\\(|construct\\()",
+   "notes": "v1 instance method dict() -> model_dump() (recursively converts nested models). Classmethod from_orm() -> model_validate(obj, from_attributes=True). parse_obj() -> model_validate(). parse_raw() -> model_validate_json(). construct() -> model_construct() (does not validate nested models; pass _fields_set for accurate model_fields_set).",
+   "source_url": "https://pydantic.dev/docs/validation/2.4/concepts/models",
+   "evidence": "",
+   "source_official": true,
+   "verified": true,
+   "confidence": 1.0,
+   "learned_from_run": "4d29297ddb"
+  },
+  {
+   "id": "R039",
+   "title": "Replace @validator decorator with @field_validator and @model_validator",
+   "old_pattern": "from pydantic import validator\n\nclass MyModel(BaseModel):\n    x: int\n    y: int\n\n    @validator('x')\n    def check_x(cls, v):\n        if v < 0:\n            raise ValueError('x must be positive')\n        return v\n\n    @validator('x', 'y', whole=True)\n    def check_sum(cls, v):\n        if v['x'] + v['y'] > 100:\n            raise ValueError('sum too large')\n        return v",
+   "new_pattern": "from pydantic import field_validator, model_validator\n\nclass MyModel(BaseModel):\n    x: int\n    y: int\n\n    @field_validator('x')\n    @classmethod\n    def check_x(cls, v):\n        if v < 0:\n            raise ValueError('x must be positive')\n        return v\n\n    @model_validator(mode='after')\n    def check_sum(self):\n        if self.x + self.y > 100:\n            raise ValueError('sum too large')\n        return self",
+   "detection_hint": "@validator\\s*\\(",
+   "notes": "@validator removed entirely. Single-field validators become @field_validator (keep @classmethod). Multi-field/whole-model validators become @model_validator with mode='after' (receives self) or mode='before' (receives dict). @field_validator requires @classmethod; @model_validator does not. Error types change (e.g., assertion_error unchanged). [unverified: source page does not support the rule]",
+   "source_url": "https://pydantic.dev/docs/validation/2.4/concepts/models",
+   "evidence": "",
+   "source_official": true,
+   "verified": false,
+   "confidence": 0.0,
+   "learned_from_run": "4d29297ddb"
   }
  ]
 }

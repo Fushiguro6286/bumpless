@@ -83,3 +83,10 @@ async def test_budget_cap():
     await llm.chat("plan", [])
     with pytest.raises(BudgetExceeded):
         await llm.chat("plan", [])
+
+
+async def test_chat_json_last_retry_goes_one_tier_up():
+    fake = FakeClient(["no", "still no", '{"answer": 1}'])
+    llm = LLM(client=fake)
+    assert (await llm.chat("rulebook", [], schema=Out)).answer == 1
+    assert [c["tier"] for c in llm.calls] == ["super", "super", "ultra"]

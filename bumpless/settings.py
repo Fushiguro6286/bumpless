@@ -48,4 +48,11 @@ class Settings:
         )
 
 
+    @property
+    def provider(self) -> str:
+        host = self.nebius_base_url.split("//")[-1].split("/")[0]
+        return {"api.tokenfactory.nebius.com": "Nebius Token Factory",
+                "integrate.api.nvidia.com": "the NVIDIA API catalog"}.get(host, host)
+
+
 settings = Settings.from_env()

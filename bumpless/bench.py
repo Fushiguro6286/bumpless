@@ -100,6 +100,7 @@ async def bench(path: Path, routing: str = "tiered", executor: str | None = None
                 only: list[str] | None = None) -> dict:
     repos = [r for r in load(path) if not only or r["name"] in only]
     bench_id = time.strftime("%Y%m%d-%H%M%S") + f"-{routing}"
+    commit = _commit()
     sem = asyncio.Semaphore(concurrency)
 
     async def one(r: dict) -> dict:
@@ -114,7 +115,7 @@ async def bench(path: Path, routing: str = "tiered", executor: str | None = None
             return row
 
     rows = await asyncio.gather(*[one(r) for r in repos])
-    out = {"bench_id": bench_id, "routing": routing, "created_at": time.time(), "commit": _commit(),
+    out = {"bench_id": bench_id, "routing": routing, "created_at": time.time(), "commit": commit,
            "provider": urlparse(settings.nebius_base_url).hostname, "models": settings.models,
            "summary": aggregate(rows), "runs": rows}
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)

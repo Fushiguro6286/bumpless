@@ -112,6 +112,8 @@ class LLM:
                     {"role": "assistant", "content": text[:4000]},
                     {"role": "user", "content": f"Your reply was invalid: {e}\nReply again with ONLY valid JSON."},
                 ]
+                if attempt == 1:  # last try on the next tier up: a stronger model usually fixes malformed JSON
+                    tier = router.ESCALATION[min(router.ESCALATION.index(tier) + 1, len(router.ESCALATION) - 1)]
 
     async def _call(self, task, step, tier, messages, max_tokens, temperature) -> str:
         reasoning = task not in router.NO_REASONING_TASKS

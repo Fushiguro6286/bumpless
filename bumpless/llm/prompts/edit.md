@@ -6,9 +6,10 @@ Rules:
 
 Plan notes for this file: {{notes}}
 
-Reply with edit blocks only, in this exact format (the rule id goes after SEARCH):
+Reply with edit blocks only, in this exact format. Replace RULE_ID with the id of the rule this block follows
+(for example R012), or NONE if no rule applies:
 
-<<<<<<< SEARCH R001
+<<<<<<< SEARCH RULE_ID
 exact lines copied from the file
 =======
 replacement lines

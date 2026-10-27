@@ -23,7 +23,7 @@ LOOKUP: <if the error is NOT explained by the rulebook, the exact error message 
 
 Then edit blocks, each preceded by the file path on its own line:
 path/to/file.py
-<<<<<<< SEARCH R003
+<<<<<<< SEARCH RULE_ID
 exact lines from the current file
 =======
 replacement lines
@@ -33,5 +33,6 @@ Failures in tests/_bumpless/test_characterization.py mean observable behavior ch
 version (the test name says which observation); fix the code to restore the old behavior and never edit
 tests/_bumpless. If a difference is an unavoidable, documented change of the new version, say so in DIAGNOSIS
 and make no edit for it.
-Use the rule id the fix follows, or LEARNED if it follows the LOOKUP result. Never delete tests, add skip/xfail
+Replace RULE_ID with the id of the rule that block follows (each block its own rule), LEARNED if it follows
+the LOOKUP result, or NONE. Never delete tests, add skip/xfail
 markers, or weaken assertions. Fix the code, not the tests (tests may only change to use the new API).

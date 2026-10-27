@@ -5,8 +5,9 @@
   "summary": {
     "repos": 5,
     "green": 3,
-    "partial": 2,
-    "failed": 0,
+    "partial": 1,
+    "failed": 1,
+    "infra_errors": 0,
     "success_rate": 0.6,
     "tests_fixed": 29,
     "tests_failing_before_fix": 37,
@@ -123,7 +124,7 @@
       "kind": "fixture",
       "package": "openai",
       "run_id": "b6b90575b1",
-      "status": "partial",
+      "status": "failed",
       "error": null,
       "old_version": "0.28.1",
       "new_version": "1.109.1",
@@ -141,7 +142,8 @@
       },
       "escalations": 3,
       "recipe_reused": true,
-      "manual_review": 21
+      "manual_review": 21,
+      "status_note": "relabelled partial -> failed: 0 repo tests fixed (status logic counted a passing generated behavior test as progress; fixed 2026-10-28)"
     }
   ],
   "commit": "32b8f7f"

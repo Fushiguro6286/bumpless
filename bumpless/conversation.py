@@ -16,6 +16,7 @@ from bumpless.pipeline import baseline, coverage, edit, review
 from bumpless.pipeline.context import RunContext
 from bumpless.pipeline.intake import ACTOR, ignore_scratch
 from bumpless.pipeline.plan import rules_text
+from bumpless.settings import settings
 
 ALLOWED = {"OWNER", "MEMBER", "COLLABORATOR"}
 TRIGGER = "@bumpless"
@@ -72,7 +73,7 @@ def _result_lines(v: dict, ctx: RunContext, commit: str | None, spent0: float) -
             f"**Verified change coverage of this revision:** {cov}"
             + (" ⚠️ no test runs these lines, so passing tests don't prove this revision works" if untested else ""),
             f"**Commit:** `{commit}`" if commit else "**Commit:** none (nothing changed)",
-            f"**Cost:** ${ctx.llm.spent - spent0:.4f} on Nemotron via Nebius Token Factory"]
+            f"**Cost:** ${ctx.llm.spent - spent0:.4f} on Nemotron via {settings.provider}"]
 
 
 async def handle(ctx: RunContext, comment: str, association: str, base: str, user: str = "reviewer") -> dict:
@@ -162,7 +163,6 @@ def context_for(ws, package: str, rulebook, run_id: str, executor: str | None = 
     from bumpless.llm.client import LLM
     from bumpless.pipeline import intake
     from bumpless.sandbox.base import get_executor
-    from bumpless.settings import settings
 
     ctx = RunContext(run_id=run_id, workspace=ws, package=package, target="", llm=LLM(run_id, "tiered"),
                      tavily=None, executor=get_executor(executor or settings.executor))

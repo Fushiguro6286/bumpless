@@ -29,15 +29,21 @@ def pct(rate) -> str:
     return "—" if rate is None else f"{round(rate * 100)}%"
 
 
+def status(x: dict) -> str:
+    err = (x.get("error") or "").split(":")[0]
+    return x["status"] + (f" ({err})" if err else "") + (" \\*" if x.get("status_note") else "")
+
+
 def table(r: dict) -> str:
     lines = ["| Repo | Kind | Upgrade | Status | Tests fixed | Behavior kept | Coverage | Cost | Time | Recipe | Run |",
              "|---|---|---|---|---|---|---|---|---|---|---|"]
     for x in r["runs"]:
         lines.append(
-            f"| {x['name']} | {x['kind']} | {x['package']} {x['old_version']} → {x['new_version']} | {x['status']} | "
+            f"| {x['name']} | {x['kind']} | {x['package']} {x['old_version']} → {x['new_version']} | {status(x)} | "
             f"{x['tests_fixed']}/{x['tests_failing_before_fix']} | {pct(x['characterization_pass_rate'])} | "
             f"{fmt(x['coverage_percent'], '%')} | ${x['cost_usd']:.4f} | {round(x['duration_s'])}s | "
             f"{'reused' if x['recipe_reused'] else 'first run'} | `{x['run_id']}` |")
+    lines += [f"\n\\* `{x['run_id']}`: {x['status_note']}" for x in r["runs"] if x.get("status_note")]
     return "\n".join(lines)
 
 
@@ -102,6 +108,10 @@ def main() -> None:
         tc, uc = latest["tiered"].get("commit"), latest["all-ultra"].get("commit")
         if tc != uc:
             parts += [f"**Not like-for-like:** these two runs used different code (tiered `{tc}`, all-Ultra `{uc}`).", ""]
+        for m in ("tiered", "all-ultra"):
+            if latest[m].get("models"):
+                models = ", ".join(f"{k} `{v}`" for k, v in latest[m]["models"].items())
+                parts += [f"{m}: {provider(latest[m])}; models {models}", ""]
         parts += ["Each mode was run once per code version, and results vary between runs of the same code (see "
                   "All benchmark runs), so treat single-run differences as indicative only.", ""]
     for mode, r in latest.items():
