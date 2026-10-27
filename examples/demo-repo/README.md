@@ -11,7 +11,8 @@ Bumpless pushes a migration commit and comments a report on the PR.
    Bumpless (it must be public, or in the same account with Actions access allowed).
 3. Add `NEBIUS_API_KEY` and `TAVILY_API_KEY` under **Settings → Secrets and variables → Dependabot**, and again
    under **Actions** (the `@bumpless` comment job and manual runs read Actions secrets).
-4. **Settings → Actions → General → Workflow permissions:** allow read and write.
+4. **Settings → Actions → General → Workflow permissions:** allow read and write, and tick **Allow GitHub
+   Actions to create and approve pull requests** (manual runs open their own PR).
 
 ## Try it
 
