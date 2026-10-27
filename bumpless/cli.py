@@ -231,6 +231,41 @@ def record(run_id: str, title: str = typer.Option("", help="Title shown in the r
     console.print(f"[green]✓[/] recorded to {do_record(run_id, title)}")
 
 
+@app.command()
+def comment(
+    repo: str = typer.Argument(".", help="Checkout of the migration PR branch"),
+    body_file: str = typer.Option(..., help="File holding the comment text"),
+    association: str = typer.Option(..., help="Commenter's author_association (OWNER/MEMBER/COLLABORATOR/...)"),
+    base: str = typer.Option(..., help="Commit before the migration (the PR base)"),
+    package: str = typer.Option(...),
+    from_major: str = typer.Option(..., "--from"),
+    to_major: str = typer.Option(..., "--to"),
+    user: str = typer.Option("reviewer"),
+    reply_file: str = typer.Option(None, help="Write the Markdown reply here"),
+) -> None:
+    """Handle an `@bumpless` PR comment (used by the GitHub Action). Commits a revision when one is made."""
+    from pathlib import Path
+
+    from bumpless import conversation
+    from bumpless.recipes import store
+
+    text = Path(body_file).read_text(encoding="utf-8")
+    ctx = conversation.context_for(Path(repo).resolve(), package, store.load(package, from_major, to_major),
+                                   "comment")
+
+    async def go():
+        try:
+            return await conversation.handle(ctx, text, association, base, user=user)
+        finally:
+            await ctx.executor.close()
+
+    out = asyncio.run(go())
+    if out.get("reply") and reply_file:
+        Path(reply_file).write_text(out["reply"], encoding="utf-8")
+    console.print(escape(out.get("reply") or "(not a @bumpless comment; ignored)"))
+    console.print(f"[dim]intent={out.get('intent')} acted={out.get('acted')} commit={out.get('commit')}[/]")
+
+
 recipes_app = typer.Typer(help="Migration recipes (verified rulebooks).")
 app.add_typer(recipes_app, name="recipes")
 

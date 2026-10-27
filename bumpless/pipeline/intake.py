@@ -88,6 +88,19 @@ def prepare_workspace(source: str, run_id: str, ref: str | None = None) -> Path:
         repo.git.add(A=True)
         repo.index.commit("baseline", author=ACTOR, committer=ACTOR)
     (ws / ".bumpless").mkdir(exist_ok=True)
-    with open(ws / ".git" / "info" / "exclude", "a") as f:
-        f.write("\n.bumpless/\n__pycache__/\n*.pyc\n.coverage\n")
+    ignore_scratch(ws)
     return ws
+
+
+SCRATCH = [".bumpless/", "__pycache__/", "*.pyc", ".coverage"]
+
+
+def ignore_scratch(ws: Path) -> None:
+    """Keep Bumpless's scratch files out of git (idempotent; also used on PR checkouts)."""
+    exclude = ws / ".git" / "info" / "exclude"
+    exclude.parent.mkdir(parents=True, exist_ok=True)
+    have = exclude.read_text(encoding="utf-8").splitlines() if exclude.exists() else []
+    missing = [x for x in SCRATCH if x not in have]
+    if missing:
+        with open(exclude, "a", encoding="utf-8") as f:
+            f.write("\n" + "\n".join(missing) + "\n")

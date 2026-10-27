@@ -31,17 +31,29 @@ def load(path: Path) -> list[dict]:
 def summarize(result: dict) -> dict:
     """The numbers the benchmark reports for one run, all taken from the run result."""
     t = result.get("tests") or {}
-    before = [x for x in t.get("new_before", {}).get("failing", []) if not x.startswith(CHAR)]
     after = t.get("after", {}).get("failing", [])
     ch = result.get("characterization") or {}
     obs = ch.get("observations") or 0
     char_after = [x for x in after if x.startswith(CHAR)]
+
+    def repo_passed(run: dict | None, char_failing: int = 0) -> int:
+        if not run:
+            return 0
+        if "repo_passed" in run:
+            return run["repo_passed"]
+        return run["passed"] - max(0, obs - char_failing)  # older results: subtract characterization passes
+
+    # Repo tests broken by the bump = passed on the old version, not after the bump (a collection error breaks all).
+    old = t.get("old", {}).get("passed", 0)
+    red = repo_passed(t.get("new_before"), sum(x.startswith(CHAR) for x in t.get("new_before", {}).get("failing", [])))
+    green = repo_passed(t.get("after"), len(char_after)) if "after" in t else red
+    broken = max(0, old - red)
     cov = result.get("coverage") or {}
     return {
         "status": result["status"], "error": result.get("error"),
         "old_version": result.get("old_version"), "new_version": result.get("new_version"),
-        "tests_failing_before_fix": len(before),
-        "tests_fixed": len([x for x in before if x not in after]),
+        "tests_failing_before_fix": broken,
+        "tests_fixed": max(0, min(broken, green - red)),
         "characterization_observations": obs,
         "characterization_pass_rate": round((obs - len(char_after)) / obs, 3) if obs and "after" in t else None,
         "coverage_percent": cov.get("percent") if cov.get("measured") else None,

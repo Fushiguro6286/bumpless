@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { api, money, type CovHunk, type RunResult, type Tier } from "../api";
+import Conversation from "../components/Conversation";
 import { Card, ConfidenceBadge, SourceChip, Stat, StatusPill, TierBadge, TIER_COLOR, TIER_LABEL, VerifiedBadge } from "../components/ui";
 
 export default function Result({ r, runId, children }: { r: RunResult; runId: string; children?: React.ReactNode }) {
@@ -46,6 +47,7 @@ export default function Result({ r, runId, children }: { r: RunResult; runId: st
         <ReviewCard r={r} />
       </div>
       <TavilyPanel r={r} />
+      {r.status !== "failed" && <Conversation runId={runId} files={[...new Set((cov?.hunks ?? []).map((h) => h.path))]} />}
     </div>
   );
 }

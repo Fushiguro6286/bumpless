@@ -6,8 +6,11 @@ from bumpless.bench import aggregate, load, summarize
 def _result(status, after_failing, coverage=80.0):
     return {
         "status": status, "old_version": "1.10.18", "new_version": "2.9.0",
-        "tests": {"new_before": {"failing": ["tests.test_a::t1", "tests.test_a::t2", "tests._bumpless.test_c::x"]},
-                  "after": {"failing": after_failing}},
+        "tests": {"old": {"passed": 3},
+                  "new_before": {"passed": 1, "repo_passed": 1, "failing": ["tests.test_a::t1", "tests.test_a::t2"]},
+                  "after": {"passed": 13 - len(after_failing), "repo_passed": 3 - sum(not x.startswith("tests._bumpless")
+                                                                                     for x in after_failing),
+                            "failing": after_failing}},
         "characterization": {"observations": 10},
         "coverage": {"measured": True, "percent": coverage},
         "duration_s": 100.0, "cost": {"total_usd": 0.1, "by_tier": {"nano": 0.1}},

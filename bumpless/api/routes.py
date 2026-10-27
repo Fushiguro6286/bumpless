@@ -290,3 +290,44 @@ async def status() -> dict:
     }
     _status_cache.update(at=time.time(), data=data)
     return data | {"live": {"available": live_blocker() is None, "reason": live_blocker()}}
+
+
+class CommentRequest(BaseModel):
+    body: str
+    association: str = "OWNER"  # the web panel simulates the reviewer's role so the permission check can be shown
+
+
+@router.post("/runs/{run_id}/comment")
+async def pr_comment(run_id: str, req: CommentRequest, x_demo_password: str = Header("")) -> dict:
+    """The `@bumpless` PR conversation on a fixture run: same flow as the GitHub Action, no GitHub needed."""
+    import git
+
+    from bumpless import conversation
+    from bumpless.llm.schemas import Rulebook
+
+    if not req.body.strip().lower().startswith(conversation.TRIGGER):
+        return {"acted": False, "intent": None, "reply": f"Start the comment with `{conversation.TRIGGER}`."}
+    if req.association.upper() not in conversation.ALLOWED:  # same check as on GitHub, before any work
+        return {"acted": False, "intent": None, "reply": conversation.NOT_ALLOWED}
+    if settings.demo_password and x_demo_password != settings.demo_password:
+        raise HTTPException(401, "This demo needs a password for live actions.")
+    result = get_run(run_id)["result"] or {}
+    source = result.get("source", "")
+    if source not in {f["id"] for f in fixtures()} or not result.get("rulebook"):
+        raise HTTPException(403, "On the hosted demo the PR conversation works on fixture runs. Use the GitHub Action "
+                                 "for your own pull requests.")
+    if blocker := live_blocker():
+        raise HTTPException(503, blocker)
+    patch = _artifact(run_id, "bumpless.patch", "patch")
+    cid = "conv" + uuid.uuid4().hex[:8]
+    async with _live:
+        ws = await asyncio.to_thread(conversation.rebuild_workspace, FIXTURES_DIR / source, patch, cid)
+        ctx = conversation.context_for(ws, result["package"], Rulebook.model_validate(result["rulebook"]), cid)
+        try:
+            out = await conversation.handle(ctx, req.body, req.association, "HEAD~1", user="you")
+        finally:
+            await ctx.executor.close()
+        diff = ""
+        if out.get("commit"):
+            diff = git.Repo(ws).git.show("HEAD", "--format=", "--", ".", ":(exclude)tests/_bumpless")
+    return out | {"diff": diff[-20000:], "cost_usd": round(ctx.llm.spent, 6)}

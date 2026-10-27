@@ -5,6 +5,8 @@ name: Bumpless
 
 on:
   pull_request:
+  issue_comment:
+    types: [created]
   workflow_dispatch:
     inputs:
       package: {description: "Package (e.g. pydantic)", required: true}
@@ -16,7 +18,7 @@ permissions:
 
 jobs:
   bumpless:
-    if: github.actor == 'dependabot[bot]' || github.event_name == 'workflow_dispatch'
+    if: (github.event_name == 'pull_request' && github.actor == 'dependabot[bot]') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -49,4 +51,44 @@ jobs:
           pr-number: ${{ github.event.pull_request.number }}
           nebius-api-key: ${{ secrets.NEBIUS_API_KEY }}
           tavily-api-key: ${{ secrets.TAVILY_API_KEY }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  # `@bumpless <request>` comments on the PR: revise / explain / revert. Needs NEBIUS_API_KEY as an *Actions* secret
+  # (comment workflows run as the commenter, not as Dependabot).
+  respond:
+    if: >-
+      github.event_name == 'issue_comment' && github.event.issue.pull_request &&
+      startsWith(github.event.comment.body, '@bumpless')
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PR: ${{ github.event.issue.number }}
+    steps:
+      - name: Only owners, members and collaborators; no fork PRs
+        id: gate
+        env:
+          ASSOCIATION: ${{ github.event.comment.author_association }}
+        run: |
+          case "$ASSOCIATION" in OWNER|MEMBER|COLLABORATOR) ;; *)
+            gh pr comment "$PR" -R "$GITHUB_REPOSITORY" --body "Thanks for the suggestion! I only act on requests from this repository's owners, members and collaborators, so I haven't changed anything."
+            echo "ok=false" >> "$GITHUB_OUTPUT"; exit 0;; esac
+          head=$(gh pr view "$PR" -R "$GITHUB_REPOSITORY" --json headRepositoryOwner,headRepository,headRefName --jq '"\(.headRepositoryOwner.login)/\(.headRepository.name) \(.headRefName)"')
+          if [ "${head% *}" != "$GITHUB_REPOSITORY" ]; then echo "ok=false" >> "$GITHUB_OUTPUT"; exit 0; fi
+          echo "ok=true" >> "$GITHUB_OUTPUT"; echo "ref=${head#* }" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.ok == 'true'
+        with: {ref: "${{ steps.gate.outputs.ref }}", fetch-depth: 0}
+
+      - if: steps.gate.outputs.ok == 'true'
+        run: git config user.name "bumpless[bot]" && git config user.email "bumpless@users.noreply.github.com"
+
+      - if: steps.gate.outputs.ok == 'true'
+        uses: YOUR_GITHUB_USER/bumpless/action/comment@main
+        with:
+          pr-number: ${{ github.event.issue.number }}
+          comment-body: ${{ github.event.comment.body }}
+          association: ${{ github.event.comment.author_association }}
+          user: ${{ github.event.comment.user.login }}
+          nebius-api-key: ${{ secrets.NEBIUS_API_KEY }}
           github-token: ${{ secrets.GITHUB_TOKEN }}

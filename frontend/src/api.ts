@@ -82,6 +82,11 @@ export interface Status {
   live: { available: boolean; reason: string | null };
 }
 
+export interface CommentReply {
+  acted: boolean; intent: string | null; reply: string | null; files?: string[]; commit?: string | null;
+  diff?: string; cost_usd?: number; tests?: TestSummary;
+}
+
 async function req<T>(url: string, init?: RequestInit): Promise<T> {
   const r = await fetch(url, init);
   if (!r.ok) {
@@ -102,6 +107,8 @@ export const api = {
   replays: () => req<Replay[]>("/api/replays"),
   replay: (id: string) => req<RunInfo & { recorded_at: number }>(`/api/replays/${id}`),
   status: () => req<Status>("/api/status"),
+  comment: (id: string, body: string, association: string, password = "") =>
+    req<CommentReply>(`/api/runs/${id}/comment`, { method: "POST", headers: { "Content-Type": "application/json", "X-Demo-Password": password }, body: JSON.stringify({ body, association }) }),
   radar: (fixture: string) =>
     req<{ source: string; rows: RadarRow[] }>("/api/radar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fixture }) }),
   start: (body: { fixture?: string; repo?: string; package: string; target: string; routing: string }, password = "") =>

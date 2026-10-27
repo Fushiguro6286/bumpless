@@ -1,0 +1,51 @@
+name: Bumpless (PR conversation)
+description: Answer an `@bumpless` review comment on a Bumpless migration PR - revise, explain or revert, re-run tests, reply.
+
+inputs:
+  pr-number: {description: PR the comment is on, required: true}
+  comment-body: {description: The comment text, required: true}
+  association: {description: "The commenter's author_association", required: true}
+  user: {description: Commenter's login, required: true}
+  nebius-api-key: {description: Nebius Token Factory API key, required: true}
+  github-token: {description: Token with contents:write and pull-requests:write, required: true}
+
+runs:
+  using: composite
+  steps:
+    - uses: astral-sh/setup-uv@v6
+
+    - name: Install Bumpless (from this action's repository)
+      shell: bash
+      run: uv tool install --editable "$GITHUB_ACTION_PATH/../.."
+
+    - name: Handle the comment
+      shell: bash
+      env:
+        NEBIUS_API_KEY: ${{ inputs.nebius-api-key }}
+        GH_TOKEN: ${{ inputs.github-token }}
+        EXECUTOR: local
+        PR: ${{ inputs.pr-number }}
+        BODY: ${{ inputs.comment-body }}   # passed via env, never interpolated into the script
+        ASSOCIATION: ${{ inputs.association }}
+        COMMENTER: ${{ inputs.user }}
+      run: |
+        set -euo pipefail
+        printf '%s' "$BODY" > "$RUNNER_TEMP/comment.md"
+        # Context written by Bumpless into its report comment: package and recipe versions.
+        gh pr view "$PR" --json comments --jq '[.comments[].body | select(contains("<!-- bumpless:"))] | last' > "$RUNNER_TEMP/report.md"
+        read -r package from to < <(python3 - "$RUNNER_TEMP/report.md" <<'EOF'
+        import json, re, sys
+        m = re.search(r"<!-- bumpless: (\{.*?\}) -->", open(sys.argv[1], encoding="utf-8").read())
+        d = json.loads(m.group(1)) if m else {}
+        print(d.get("package") or "-", d.get("from") or "-", d.get("to") or "-")
+        EOF
+        )
+        if [ "$package" = "-" ]; then gh pr comment "$PR" --body "I can't find my migration report on this PR, so I don't know what to revise."; exit 0; fi
+        # Base = the commit before Bumpless's first commit on this branch.
+        first=$(git log --author=bumpless@users.noreply.github.com --format=%H | tail -1)
+        if [ -z "$first" ]; then gh pr comment "$PR" --body "This branch has no Bumpless commits to revise."; exit 0; fi
+        before=$(git rev-parse HEAD)
+        bumpless comment . --body-file "$RUNNER_TEMP/comment.md" --association "$ASSOCIATION" --base "$first^" \
+          --package "$package" --from "$from" --to "$to" --user "$COMMENTER" --reply-file "$RUNNER_TEMP/reply.md"
+        if [ "$(git rev-parse HEAD)" != "$before" ]; then git push origin "HEAD:$(git rev-parse --abbrev-ref HEAD)"; fi
+        if [ -s "$RUNNER_TEMP/reply.md" ]; then gh pr comment "$PR" --body-file "$RUNNER_TEMP/reply.md"; fi
