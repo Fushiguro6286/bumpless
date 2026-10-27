@@ -129,7 +129,8 @@ async def edit_file(ctx: RunContext, pf: PlanFile, rules: list[Rule], sem: async
             reply = await ctx.llm.chat("edit", [{"role": "user", "content": prompts.render(
                 "edit", package=ctx.package, rules=rules_text(rules), notes=notes or "none", path=pf.path,
                 content=current, feedback=feedback, **{"from": ctx.from_major, "to": ctx.to_major})}],
-                step="edit", escalation=esc, max_tokens=16000)
+                # ~3 chars/token: room for search+replace of the whole file (~2 copies), so a degenerate reply stops early
+                step="edit", escalation=esc, max_tokens=min(16000, len(current) + 2000))
             blocks = parse_blocks(reply)
             if not blocks and "NO_CHANGES" in reply:
                 residual = [rid for rid, rx in hints.items() if rx.search(current)]

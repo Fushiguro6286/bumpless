@@ -99,6 +99,16 @@ def main() -> None:
         if first and reused:
             parts += [f"Recipe reuse: first runs averaged ${sum(first) / len(first):.4f}; runs reusing a recipe "
                       f"averaged ${sum(reused) / len(reused):.4f}.", ""]
+    if results:  # every run, not just the latest: results vary between runs of the same code
+        parts += ["## All benchmark runs", "",
+                  "| Benchmark | Routing | Code | Green | Partial | Failed | Tests fixed | Total cost | Median time |",
+                  "|---|---|---|---|---|---|---|---|---|"]
+        for r in results:
+            s = r["summary"]
+            parts.append(f"| `{r['bench_id']}` | {r['routing']} | {r.get('commit') or 'not recorded'} | {s['green']} | "
+                         f"{s['partial']} | {s['failed']} | {s['tests_fixed']}/{s['tests_failing_before_fix']} | "
+                         f"${s['total_cost_usd']:.3f} | {fmt(s['median_duration_s'], 's', 0)} |")
+        parts.append("")
     fsutil.write(OUT / "RESULTS.md", "\n".join(parts).rstrip() + "\n")
     print(f"wrote {OUT / 'RESULTS.md'} from {len(results)} result file(s)")
 

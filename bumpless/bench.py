@@ -7,6 +7,7 @@ import time
 import uuid
 from pathlib import Path
 
+import git
 import yaml
 
 from bumpless import fsutil
@@ -106,11 +107,20 @@ async def bench(path: Path, routing: str = "tiered", executor: str | None = None
             return row
 
     rows = await asyncio.gather(*[one(r) for r in repos])
-    out = {"bench_id": bench_id, "routing": routing, "created_at": time.time(), "summary": aggregate(rows),
-           "runs": rows}
+    out = {"bench_id": bench_id, "routing": routing, "created_at": time.time(), "commit": _commit(),
+           "summary": aggregate(rows), "runs": rows}
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     fsutil.write(RESULTS_DIR / f"{bench_id}.json", json.dumps(out, indent=2) + "\n")
     return out
+
+
+def _commit() -> str | None:
+    """The Bumpless commit a benchmark ran on ('+dirty' if there were uncommitted changes)."""
+    try:
+        repo = git.Repo(Path(__file__).resolve().parents[1])
+        return repo.head.commit.hexsha[:7] + ("+dirty" if repo.is_dirty() else "")
+    except (git.InvalidGitRepositoryError, ValueError):
+        return None
 
 
 def all_results() -> list[dict]:

@@ -21,7 +21,9 @@ TASK_TIERS: dict[str, str] = {
 
 ESCALATION = ["nano", "super", "ultra"]
 # Simple extraction / yes-no tasks run with Nemotron's reasoning turned off: same answers, a fraction of the tokens.
-NO_REASONING_TASKS = {"summarize", "verify_rule", "ping"}
+# Edits too: the plan says what to change, and with reasoning on Nano/Super often spent the whole 16k budget
+# thinking before writing a single block (benchmark 20261027-173406).
+NO_REASONING_TASKS = {"summarize", "verify_rule", "ping", "edit"}
 MODES = ("tiered", "all-ultra")
 
 
