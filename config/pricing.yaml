@@ -1,0 +1,6 @@
+# USD per 1M tokens (input / output), keyed by routing tier.
+# VERIFY against the Nebius Token Factory pricing page before trusting cost numbers:
+# https://tokenfactory.nebius.com/ (Models -> pricing). Prices change.
+nano:  {input: 0.06, output: 0.24}
+super: {input: 0.30, output: 0.90}
+ultra: {input: 1.00, output: 3.00}
