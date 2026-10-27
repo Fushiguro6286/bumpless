@@ -6,6 +6,8 @@ import Layout from "./components/Layout";
 import NewMigration from "./pages/NewMigration";
 import Benchmark from "./pages/Benchmark";
 import Radar from "./pages/Radar";
+import ReplayPage from "./pages/Replay";
+import StatusPage from "./pages/Status";
 import Placeholder from "./pages/Placeholder";
 import Recipes from "./pages/Recipes";
 import Run from "./pages/Run";
@@ -22,7 +24,8 @@ const router = createBrowserRouter([
       { path: "recipes", element: <Recipes /> },
       { path: "radar", element: <Radar /> },
       { path: "benchmark", element: <Benchmark /> },
-      { path: "status", element: <Placeholder title="Status" note="Coming in a later build step." /> },
+      { path: "status", element: <StatusPage /> },
+      { path: "replay/:id", element: <ReplayPage /> },
       { path: "*", element: <Placeholder title="Not found" note="This page does not exist." /> },
     ],
   },

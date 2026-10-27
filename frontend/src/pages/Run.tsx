@@ -7,7 +7,7 @@ import Result from "./Result";
 
 type Action = { ev: RunEvent } | { reset: true };
 
-function reducer(s: LiveState, a: Action) {
+export function reducer(s: LiveState, a: Action) {
   return "reset" in a ? initialState() : reduce(s, a.ev);
 }
 

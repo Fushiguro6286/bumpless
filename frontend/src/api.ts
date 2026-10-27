@@ -68,6 +68,20 @@ export interface RadarRow {
   estimate: { usd: number | null; basis: string };
 }
 
+export interface Replay {
+  id: string; title: string; status: string; package: string; created_at: number; cost_usd: number | null;
+  duration_s: number | null; coverage: number | null; tests: TestSummary | null;
+}
+
+export interface Status {
+  token_factory: { ok: boolean; error: string | null; models: Record<string, { model: string; ok: boolean }> };
+  tavily: { ok: boolean; error: string | null };
+  budget: { daily_usd: number; spent_today_usd: number; remaining_usd: number };
+  last_successful_run: { id: string; created_at: number; package: string } | null;
+  replays: number; password_required: boolean;
+  live: { available: boolean; reason: string | null };
+}
+
 async function req<T>(url: string, init?: RequestInit): Promise<T> {
   const r = await fetch(url, init);
   if (!r.ok) {
@@ -85,10 +99,13 @@ export const api = {
   report: (id: string) => req<string>(`/api/runs/${id}/report`),
   recipes: () => req<Recipe[]>("/api/recipes"),
   bench: () => req<BenchResult[]>("/api/bench"),
+  replays: () => req<Replay[]>("/api/replays"),
+  replay: (id: string) => req<RunInfo & { recorded_at: number }>(`/api/replays/${id}`),
+  status: () => req<Status>("/api/status"),
   radar: (fixture: string) =>
     req<{ source: string; rows: RadarRow[] }>("/api/radar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fixture }) }),
-  start: (body: { fixture?: string; repo?: string; package: string; target: string; routing: string }) =>
-    req<{ run_id: string }>("/api/runs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+  start: (body: { fixture?: string; repo?: string; package: string; target: string; routing: string }, password = "") =>
+    req<{ run_id: string }>("/api/runs", { method: "POST", headers: { "Content-Type": "application/json", "X-Demo-Password": password }, body: JSON.stringify(body) }),
 };
 
 export const money = (v: number | null | undefined, digits = 4) => (v == null ? "—" : `$${v.toFixed(digits)}`);

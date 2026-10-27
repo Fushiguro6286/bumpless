@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { api, type Fixture, type RunRow } from "../api";
+import { api, type Fixture, type RunRow, type Status } from "../api";
 import { Card, ErrorBox, StatusPill } from "../components/ui";
+import { ReplayList } from "./Replay";
 
 export default function NewMigration() {
   const nav = useNavigate();
@@ -13,8 +14,11 @@ export default function NewMigration() {
   const [routing, setRouting] = useState("tiered");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<Status | null>(null);
+  const [password, setPassword] = useState("");
 
   useEffect(() => {
+    api.status().then(setStatus).catch(() => {});
     api.fixtures().then((f) => { setFixtures(f); if (f[0]) choose(f[0]); }).catch((e) => setError(e.message));
     api.runs().then(setRuns).catch(() => {});
   }, []);
@@ -24,7 +28,7 @@ export default function NewMigration() {
   async function start() {
     setBusy(true); setError(null);
     try {
-      const { run_id } = await api.start({ fixture: picked, package: pkg, target, routing });
+      const { run_id } = await api.start({ fixture: picked, package: pkg, target, routing }, password);
       nav(`/runs/${run_id}`);
     } catch (e) { setError((e as Error).message); setBusy(false); }
   }
@@ -40,6 +44,13 @@ export default function NewMigration() {
           Nebius Token Factory, and hands you a PR where every change is cited and tested.
         </p>
       </section>
+
+      {status && !status.live.available && (
+        <div role="status" className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+          {status.live.reason} Meanwhile, watch a recorded real run below: same UI, same numbers, clearly labelled as a replay.
+        </div>
+      )}
+      {status && !status.live.available && <ReplayList />}
 
       <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
         <Card title="1 · Repository">
@@ -93,8 +104,15 @@ export default function NewMigration() {
                 ))}
               </div>
             </fieldset>
+            {status?.password_required && (
+              <div>
+                <label htmlFor="pw" className="text-xs font-medium text-ink-400">Demo password</label>
+                <input id="pw" type="password" value={password} onChange={(e) => setPassword(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-ink-700 bg-ink-900 px-3 py-2 text-sm" />
+              </div>
+            )}
             {error && <ErrorBox>{error}</ErrorBox>}
-            <button onClick={start} disabled={busy || !picked || !pkg || !target}
+            <button onClick={start} disabled={busy || !picked || !pkg || !target || status?.live.available === false}
               className="w-full rounded-lg bg-accent px-4 py-2.5 font-semibold text-ink-950 transition hover:brightness-110 disabled:opacity-50">
               {busy ? "Starting…" : "Run migration"}
             </button>
@@ -102,6 +120,8 @@ export default function NewMigration() {
           </div>
         </Card>
       </div>
+
+      {(!status || status.live.available) && <ReplayList />}
 
       <Card title="Recent runs" right={<Link to="/runs" className="text-xs text-ink-300 hover:text-accent">All runs →</Link>}>
         {runs.length === 0 ? <p className="text-sm text-ink-400">No runs yet.</p> : (

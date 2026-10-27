@@ -223,6 +223,14 @@ def radar(repo: str = typer.Argument(..., help="GitHub URL or local path")) -> N
     console.print("[dim]Estimates come from stored real runs; see the 'est. cost' basis in the web Radar page.[/]")
 
 
+@app.command()
+def record(run_id: str, title: str = typer.Option("", help="Title shown in the replay list")) -> None:
+    """Export a finished real run to demo/recordings/ for replay mode."""
+    from bumpless.replay import record as do_record
+
+    console.print(f"[green]✓[/] recorded to {do_record(run_id, title)}")
+
+
 recipes_app = typer.Typer(help="Migration recipes (verified rulebooks).")
 app.add_typer(recipes_app, name="recipes")
 
