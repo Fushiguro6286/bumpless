@@ -55,3 +55,8 @@ Notes collected while building Bumpless. Concrete and dated.
 ## Tavily (2026-10-27, zero-shot SQLAlchemy)
 - `map` on `docs.sqlalchemy.org/en/latest/changelog/` (http or https, `select_paths` scoped to the section)
   returned 0 URLs, while `search` returned pages from that exact section. Possibly the `/en/latest/` redirect.
+
+## Known limit of our own verifier (2026-10-27)
+- The "is this change required?" check (Nano, reasoning off) is conservative and can be wrong in the safe
+  direction: it marked pydantic's `__modify_schema__` → `__get_pydantic_json_schema__` as an optional new style,
+  although v2 rejects the old hook. Such a rule is kept in the recipe but not applied; repair can still fix it.
