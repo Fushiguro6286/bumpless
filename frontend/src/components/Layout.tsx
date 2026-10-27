@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { AboutModal } from "./About";
+import Tour from "./Tour";
 
 const NAV = [
   { to: "/", label: "New migration", end: true },
@@ -22,6 +23,7 @@ export function Logo() {
 
 export default function Layout() {
   const [about, setAbout] = useState(false);
+  const [tour, setTour] = useState(0);  // bumping the key reopens the tour
   return (
     <div className="flex min-h-screen flex-col">
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded focus:bg-ink-800 focus:px-3 focus:py-2">Skip to content</a>
@@ -38,10 +40,12 @@ export default function Layout() {
               </NavLink>
             ))}
           </nav>
+          <button onClick={() => setTour((t) => t + 1)} className="rounded-md px-3 py-1.5 text-sm text-ink-300 hover:text-ink-100">Tour</button>
           <button onClick={() => setAbout(true)} className="rounded-md px-3 py-1.5 text-sm text-ink-300 hover:text-ink-100">About</button>
         </div>
       </header>
       <main id="main" className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6">
+        <Tour key={tour} force={tour > 0} />
         <Outlet />
       </main>
       <footer className="border-t border-ink-700 py-6 text-center text-xs text-ink-400">

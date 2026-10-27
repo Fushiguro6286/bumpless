@@ -42,7 +42,8 @@ jobs:
           if python -m pytest -q; then echo "red=false" >> "$GITHUB_OUTPUT"; else echo "red=true" >> "$GITHUB_OUTPUT"; fi
 
       - name: Bumpless
-        if: steps.tests.outputs.red == 'true' && (github.event_name == 'workflow_dispatch' || startsWith(steps.meta.outputs.update-type, 'version-update:semver-major'))
+        # Manual runs always migrate; Dependabot PRs only on a major bump whose tests fail.
+        if: github.event_name == 'workflow_dispatch' || (steps.tests.outputs.red == 'true' && startsWith(steps.meta.outputs.update-type, 'version-update:semver-major'))
         uses: YOUR_GITHUB_USER/bumpless/action@main
         with:
           package: ${{ inputs.package || steps.meta.outputs.dependency-names }}

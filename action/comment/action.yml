@@ -32,7 +32,8 @@ runs:
         set -euo pipefail
         printf '%s' "$BODY" > "$RUNNER_TEMP/comment.md"
         # Context written by Bumpless into its report comment: package and recipe versions.
-        gh pr view "$PR" --json comments --jq '[.comments[].body | select(contains("<!-- bumpless:"))] | last' > "$RUNNER_TEMP/report.md"
+        # The report is a PR comment (Dependabot PRs) or the PR body (PRs Bumpless opened itself).
+        gh pr view "$PR" --json body,comments --jq '[.body, .comments[].body] | map(select(contains("<!-- bumpless:"))) | last // ""' > "$RUNNER_TEMP/report.md"
         read -r package from to < <(python3 - "$RUNNER_TEMP/report.md" <<'EOF'
         import json, re, sys
         m = re.search(r"<!-- bumpless: (\{.*?\}) -->", open(sys.argv[1], encoding="utf-8").read())

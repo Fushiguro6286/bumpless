@@ -5,33 +5,78 @@
 | Field | Value |
 |---|---|
 | Project | Bumpless |
-| One-liner | Dependabot bumps the version. Bumpless makes it pass. |
+| Tagline | Dependabot bumps the version. Bumpless makes it pass. |
 | Repository | TODO (public, MIT) |
-| Live demo | TODO (replays work without keys; live runs are budget-capped) |
+| Live demo | TODO (replays work without credits; live runs are budget-capped) |
 | Video (≤ 3 min) | TODO |
 
-## What it does (short)
+## Inspiration
 
-Bumpless is an agent that finishes major-version dependency upgrades that Dependabot opens and CI fails. It
-researches the official migration guide with Tavily and turns it into a rulebook whose rules are each checked
-against their source. It records the code's current behavior as characterization tests, then migrates the code
-with NVIDIA Nemotron 3 (Nano edits, Super escalates, Ultra plans, diagnoses and reviews) on Nebius Token Factory.
-It proves the result with tests in a sandbox and **verified change coverage**, and opens a PR whose report cites
-a rule and source URL for every change. Reviewers can talk to it on the PR with `@bumpless`.
+Dependabot is great at noticing that `pydantic` 2 is out, and useless at what comes next. A major bump opens a
+red PR, and then a person spends an afternoon reading a migration guide, grepping for old APIs, rewriting them
+and hoping the tests cover it. Those PRs pile up. We wanted an agent that does that afternoon's work, and shows
+enough evidence that a reviewer can trust it.
 
-## How the sponsor technology is used
+## What it does
 
-- **Nebius Token Factory:** all inference, through the OpenAI-compatible API, with per-call cost tracking and
-  per-run caps.
-- **Nemotron 3 Nano / Super / Ultra:** tiered routing by task, with escalation on failure. The benchmark compares
-  tiered routing to all-Ultra on the same repos (see the README Results).
-- **Tavily:** search (raw markdown content), extract and map to find and read official migration guides and
-  changelogs. Every rule cites a Tavily-fetched page, and a Nano check confirms the page supports it.
+Point Bumpless at a repo and a target version (or let the GitHub Action do it on a Dependabot PR).
 
-## Results
+1. **Tavily** finds the official migration guide and changelog. **Nemotron 3 Nano** turns each page into
+   candidate rules and **Super** synthesizes a rulebook. Every rule is then checked against the page it came
+   from, including whether the old usage really breaks, and only verified rules are applied.
+2. It records how the code behaves on the old version as **characterization tests**.
+3. **Ultra** plans. **Nano** edits files in parallel, and a failed edit escalates to Super, then Ultra.
+   Guardrails reject edits that weaken tests.
+4. Tests run in a Docker sandbox. **Ultra** diagnoses and repairs failures, looking up unknown errors with Tavily.
+5. The report shows **verified change coverage** (which changed lines the tests ran) and a confidence, rule and
+   source URL for every change.
+6. Reviewers can reply `@bumpless revise / explain / revert` on the PR.
+7. Verified rulebooks become **recipes** reused on the next repo. **Radar** shows a repo's upgrade backlog with risk
+   and cost estimates.
 
-See README → Results (generated from stored benchmark runs; fixture repos).
+## How we built it
 
-## Honest limits
+- **Python + FastAPI + SQLite**, a Typer CLI, and a React/Vite/Tailwind UI with a live run view over SSE.
+- **Nebius Token Factory** (OpenAI-compatible API) for every model call, with per-call cost accounting and caps.
+- **NVIDIA Nemotron 3 Nano / Super / Ultra** with task-based routing and escalation, and an all-Ultra mode we
+  benchmark against.
+- **Tavily** search (raw markdown), extract and map, cached in SQLite, with source verification, recipe
+  freshness and error lookup.
+- **Nebius Serverless:** planned for hosting and for a Jobs sandbox executor, not done in time. We say so in the
+  README.
+- A benchmark harness that stores every run with its commit, plus replays of real runs for the demo.
 
-See README → Status and limits.
+## Challenges we ran into
+
+- **Rules that are true but optional.** On SQLAlchemy, a rule like "use `where()` instead of `filter_by()`" was
+  supported by the docs but only applies to the new query style. Applying it broke working code. Verification
+  now also asks whether the old usage really breaks.
+- **"Reply NONE if nothing applies"** turned out to be a strong attractor for Nemotron with reasoning off: 8 of
+  9 tries said `NONE` on a guide page full of before/after code. A reworded prompt got 5 of 5.
+- **Reasoning budgets.** With reasoning on, Nano/Super sometimes spent their whole 16k-token budget thinking
+  about an edit. Edits now run with reasoning off, which halved tiered run time.
+- **Honest benchmarks.** Results vary between runs of the same code, so we list every run and its commit
+  instead of the best one.
+
+## Accomplishments we're proud of
+
+- pydantic v1 → v2 and openai 0.28 → 1.x migrations green on our fixtures, with every change cited to an
+  official source and covered by tests (all-Ultra benchmark: 5/5 green, 37/37 broken tests fixed, $0.71 total).
+- Verified change coverage and characterization tests: evidence, not just a green check.
+- A zero-shot SQLAlchemy 1.4 → 2.0 migration went green on its first try, and we published the runs that
+  didn't.
+- A PR conversation that refuses outside contributors before spending a single token.
+
+## What we learned
+
+- Grounding beats memory: Nano answering from memory invented pydantic changes, and fetched, verified sources
+  fixed that.
+- A cheap model is cheap only if its first attempt works. Most of our spend went to Ultra repairing failed
+  edits, so better first edits are the biggest lever on cost.
+- Small prompt wordings can flip results completely.
+
+## What's next
+
+- Real-world repos in the benchmark (pinned SHAs; the harness already supports them).
+- The Nebius Serverless deployment and Jobs executor.
+- More ecosystems after Python + pytest.

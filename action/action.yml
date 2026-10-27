@@ -71,13 +71,23 @@ runs:
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
+        GH_TOKEN: ${{ inputs.github-token }}
+        PACKAGE: ${{ inputs.package }}
+        TARGET: ${{ inputs.target }}
       run: |
         set -euo pipefail
         git config user.name "bumpless[bot]"
         git config user.email "bumpless@users.noreply.github.com"
         # The patch is base -> migrated; the PR branch already has the version bump, so apply with a 3-way merge.
         git am --3way "$RUNNER_TEMP/bumpless-out/bumpless.patch" || { git am --abort; echo "::error::patch did not apply"; exit 1; }
-        git push origin "HEAD:${GITHUB_HEAD_REF}"
+        if [ -n "${GITHUB_HEAD_REF:-}" ]; then
+          git push origin "HEAD:${GITHUB_HEAD_REF}"
+        else  # manual run (no PR): push a new branch and open a PR with the report as its body
+          branch="bumpless/${PACKAGE}-${GITHUB_RUN_ID}"
+          git push origin "HEAD:refs/heads/${branch}"
+          gh pr create --head "$branch" --title "Bumpless: migrate ${PACKAGE} to ${TARGET}" \
+            --body-file "$RUNNER_TEMP/bumpless-out/report.md"
+        fi
 
     - name: Comment the report
       if: inputs.pr-number != '' && always()

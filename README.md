@@ -26,18 +26,87 @@ shows its evidence:
 Scope: Python + pytest. The engine is generic: there is no package-specific code. The flagship migrations are
 pydantic v1 → v2 and openai 0.28 → 1.x, plus a zero-shot SQLAlchemy 1.4 → 2.0 fixture it has no recipe for.
 
-## Sponsor services, and what each one does here
+## How it works
 
-| Service | Used for |
-|---|---|
-| **Nebius Token Factory** | Every model call, through the OpenAI-compatible API (`https://api.tokenfactory.nebius.com/v1/`). Model IDs are checked against `GET /v1/models` (`bumpless doctor`). Per-call cost is computed from token usage and `config/pricing.yaml`, shown live, and capped per run (`MAX_RUN_COST_USD`). |
-| **NVIDIA Nemotron 3 Nano** | High-volume, cheap work: summarizing each fetched page into candidate rules, yes/no checks of every rule against its source, and per-file code edits. Reasoning is turned off for extraction (`chat_template_kwargs.enable_thinking=false`), which cut the research step from 236 s to 137 s. |
-| **NVIDIA Nemotron 3 Super** | Rulebook synthesis across many pages, designing characterization probes, classifying PR comments, Radar risk estimates, the first edit escalation, and re-reading official guides when Nano finds nothing (on the openai v1 guide Nano found nothing; Super's re-read gave 16 rules, all verified). |
-| **NVIDIA Nemotron 3 Ultra** | The migration plan, diagnosing test failures and repairing them, the final review, and planning revisions asked for in PR comments. The last escalation tier. |
-| **Tavily** | `search` (with `include_raw_content="markdown"`, so no separate extract call per result) to find official migration guides and changelogs, `extract` for known URLs, and `map` to walk the docs section a guide lives in. Results are cached 24 h in SQLite. The rules cite the exact Tavily-fetched URL, and the run view lists every Tavily call. |
+```mermaid
+flowchart LR
+  A[Dependabot PR<br/>CI red] --> B[Intake + baseline<br/>old vs new version]
+  B --> C[Research<br/>Tavily search / extract / map]
+  C --> D[Rulebook<br/>Nano summarizes, Super synthesizes]
+  D --> E[Verify every rule<br/>against its source page]
+  E --> F[Characterize<br/>record old behavior as tests]
+  F --> G[Plan<br/>Ultra]
+  G --> H[Edit per file<br/>Nano → Super → Ultra]
+  H --> I[Verify in Docker<br/>Ultra diagnoses + repairs<br/>Tavily error lookup]
+  I --> J[Verified change coverage<br/>+ guardrails + Ultra review]
+  J --> K[Patch, PR report,<br/>@bumpless conversation]
+  J --> L[(Recipe<br/>reused next time)]
+  L -.-> D
+```
 
-**Tiered routing vs all-Ultra** is a switch (`--routing tiered|all-ultra`), and the benchmark runs both on the
-same repos. See [Results](#results).
+## How we use NVIDIA Nemotron + Nebius Token Factory
+
+Every model call goes to Nemotron 3 on **Nebius Token Factory** through its OpenAI-compatible API
+(`https://api.tokenfactory.nebius.com/v1/`, the official `openai` SDK). `bumpless doctor` checks the model IDs
+against `GET /v1/models` and pings each tier. Each call's cost is computed from its token usage and
+`config/pricing.yaml`, shown live in the run view, and capped per run (`MAX_RUN_COST_USD`) and per day for the
+hosted demo.
+
+Each task goes to the cheapest tier that does it well (`bumpless/llm/router.py`). A failed edit escalates one
+tier at a time. `--routing all-ultra` sends everything to Ultra, for comparison.
+
+| Task | Tier | Calls* | Cost* |
+|---|---|---|---|
+| Summarize fetched pages into candidate rules | Nano (reasoning off) | 332 | $0.31 |
+| Check each rule against its source page | Nano (reasoning off) | 216 | $0.04 |
+| Per-file edits | Nano → Super → Ultra | 187 / 50 / 85 | $0.24 / $0.26 / $0.49 |
+| Rulebook synthesis | Super | 21 | $0.28 |
+| Characterization probe design | Super | 47 | $0.14 |
+| Classify `@bumpless` comments, Radar risk | Super | 4 + 6 | < $0.01 |
+| Migration plan, final review | Ultra | 41 + 39 | $0.33 + $0.36 |
+| Diagnose test failures and repair | Ultra | 135 | $2.99 |
+
+\*All runs made while building and benchmarking this project (46 runs incl. 4 PR-comment sessions and 1 Radar scan; 1,195 calls; $5.60). These include
+all-Ultra benchmark runs, which put every task on Ultra. Most of the money goes to Ultra repairing failed
+tests, so a better first edit is the cheapest improvement. That is also why tiered routing's savings are smaller
+than the per-token prices suggest (see [Results](#results)).
+
+Nemotron findings that shaped the design: with reasoning turned off (`chat_template_kwargs.enable_thinking=false`),
+Nano and Super are fast, accurate extractors. That cut the research step from 236 s to 137 s, and doing the same
+for edits cut tiered median run time from 286 s to 134 s. A wording change in one prompt stopped both models
+answering `NONE` on guide pages that were full of code. Details are in [docs/FEEDBACK.md](docs/FEEDBACK.md).
+
+## How we use Tavily
+
+| What | How | Real count* |
+|---|---|---|
+| Find the official migration guide and changelog | `search`, `search_depth="advanced"`, `include_raw_content="markdown"` (one call returns the page text, so there is no extract per result), official domains from PyPI metadata | 44 searches |
+| Walk the docs section a guide lives in | `map` with `select_paths` scoped to that section, widening one folder at a time when it's small | 28 maps |
+| Fetch pages a rule cites that search didn't return | `extract` | 4 |
+| **Source verification** | A deterministic check that the page names the API, then Nano confirms the page supports the rule *and* that the old usage really breaks. Only verified rules are applied, and the quote must occur on the page | every rule |
+| **Freshness** | A recipe older than `RECIPE_MAX_AGE_DAYS` re-runs search and summarize, and merges new rules | tested on `pydantic_orders` |
+| **Error lookup** | During repair, an error with no matching rule is searched (e.g. `"BaseModel.model_copy() got an unexpected keyword argument" pydantic 2.14.1`) | 4 searches |
+
+\*76 calls in total, 53 of them served from the 24-hour SQLite cache. Every Tavily call appears in the run
+view with its query and the URLs it returned, and every rule cites the Tavily-fetched URL it came from.
+
+## Nebius Serverless
+
+Not used yet. A Serverless deployment of the web app and a Serverless Jobs sandbox executor were planned. The
+executor is a stub (`EXECUTOR=nebius` raises a clear error), and the app has not been deployed to Nebius.
+
+## Features
+
+- **Verified change coverage:** which changed lines the tests actually executed, with a High / Medium / Low
+  confidence per change, plus its rule, source URL and the model tier that wrote it.
+- **Characterization tests:** behavior recorded on the old version and checked after the migration.
+- **PR conversation:** `@bumpless revise / explain / revert`. Owners, members and collaborators only. A revision
+  that breaks tests is undone, never pushed.
+- **Upgrade Radar:** `bumpless radar <repo>` lists pinned dependencies behind their latest major, with usage
+  counts, a Super risk estimate and a cost estimate from past runs. Each row has a Fix button in the UI.
+- **Recipes:** verified rulebooks reused across repos, with a freshness check and learned rules.
+- **Replays:** real recorded runs streamed with their original timing, so the demo works without live credits.
+- **Benchmark harness:** `bumpless bench`, both routing modes, every run stored with its commit.
 
 ## Results
 
