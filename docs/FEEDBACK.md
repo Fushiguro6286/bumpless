@@ -60,3 +60,9 @@ Notes collected while building Bumpless. Concrete and dated.
 - The "is this change required?" check (Nano, reasoning off) is conservative and can be wrong in the safe
   direction: it marked pydantic's `__modify_schema__` → `__get_pydantic_json_schema__` as an optional new style,
   although v2 rejects the old hook. Such a rule is kept in the recipe but not applied; repair can still fix it.
+
+## NVIDIA API catalog (free trial key, used when Token Factory credits ran out)
+- 2026-10-27: `GET /v1/models` lists `nvidia/nemotron-nano-3-30b-a3b` and `nvidia/nemotron-3-super-120b-a12b`, but chat calls return
+  404 "Function ...: Not found for account" on a trial key. Listing a model is not proof it can be called; `bumpless doctor` pings each tier
+  for this reason. Working substitutes: `nemotron-3.5-lightning-30b-a3b` (Nano class), `nemotron-3.5-super-vl-120b-a12b` (Super class),
+  and `nemotron-3-ultra-550b-a55b`. `chat_template_kwargs.enable_thinking=false` works; reasoning comes back in `reasoning_content`.

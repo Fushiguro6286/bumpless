@@ -164,7 +164,7 @@ async def check_models(cfg: Settings = settings, client: AsyncOpenAI | None = No
     if missing:
         nemotron = sorted(m for m in served if "nemotron" in m.lower())
         raise ModelConfigError(
-            "These configured models are not served by Token Factory: " + ", ".join(missing)
+            f"These configured models are not served by {cfg.nebius_base_url}: " + ", ".join(missing)
             + "\nServed Nemotron models: " + (", ".join(nemotron) or "(none)")
         )
     return status
