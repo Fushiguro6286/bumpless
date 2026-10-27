@@ -2,19 +2,19 @@ name: Bumpless (PR conversation)
 description: Answer an `@bumpless` review comment on a Bumpless migration PR - revise, explain or revert, re-run tests, reply.
 
 inputs:
-  pr-number: {description: PR the comment is on, required: true}
-  comment-body: {description: The comment text, required: true}
+  pr-number: {description: "PR the comment is on", required: true}
+  comment-body: {description: "The comment text", required: true}
   association: {description: "The commenter's author_association", required: true}
-  user: {description: Commenter's login, required: true}
-  nebius-api-key: {description: Nebius Token Factory API key, required: true}
+  user: {description: "Commenter's login", required: true}
+  nebius-api-key: {description: "Nebius Token Factory API key", required: true}
   base-url:
     description: OpenAI-compatible endpoint (empty = Nebius Token Factory). Free option https://integrate.api.nvidia.com/v1
     required: false
     default: ""
-  model-nano: {description: Model ID for the Nano tier (empty = Token Factory default), required: false, default: ""}
-  model-super: {description: Model ID for the Super tier (empty = Token Factory default), required: false, default: ""}
-  model-ultra: {description: Model ID for the Ultra tier (empty = Token Factory default), required: false, default: ""}
-  github-token: {description: Token with contents:write and pull-requests:write, required: true}
+  model-nano: {description: "Model ID for the Nano tier (empty = Token Factory default)", required: false, default: ""}
+  model-super: {description: "Model ID for the Super tier (empty = Token Factory default)", required: false, default: ""}
+  model-ultra: {description: "Model ID for the Ultra tier (empty = Token Factory default)", required: false, default: ""}
+  github-token: {description: "Token with contents:write and pull-requests:write", required: true}
 
 runs:
   using: composite
