@@ -18,6 +18,11 @@ CREATE TABLE IF NOT EXISTS llm_calls (
     id INTEGER PRIMARY KEY AUTOINCREMENT, run_id TEXT, ts REAL, step TEXT, task TEXT, tier TEXT,
     model TEXT, prompt_tokens INTEGER, completion_tokens INTEGER, latency_s REAL, cost_usd REAL
 );
+CREATE TABLE IF NOT EXISTS tavily_cache (key TEXT PRIMARY KEY, ts REAL, data_json TEXT);
+CREATE TABLE IF NOT EXISTS tavily_calls (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, run_id TEXT, ts REAL, kind TEXT, query TEXT,
+    n_results INTEGER, cached INTEGER, urls_json TEXT
+);
 CREATE INDEX IF NOT EXISTS events_run ON events(run_id);
 CREATE INDEX IF NOT EXISTS llm_calls_run ON llm_calls(run_id);
 """

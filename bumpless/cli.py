@@ -62,5 +62,66 @@ async def _doctor() -> None:
         raise typer.Exit(1) from None
 
 
+def _printer(run_id, type, data) -> None:
+    if type == "step_started":
+        console.rule(f"[bold cyan]{data['step']}")
+    elif type == "progress":
+        console.print(f"  {data['message']}")
+    elif type == "escalation":
+        console.print(f"  [yellow]↑ {data['message']}[/]")
+    elif type == "llm_call":
+        console.print(f"  [dim]{data['tier']:<5} {data['task']:<10} "
+                      f"{data['prompt_tokens']}→{data['completion_tokens']} tok "
+                      f"{data['latency_s']:.1f}s ${data['cost_usd']:.5f} (run ${data['run_total_usd']:.4f})[/]")
+    elif type == "tavily_call":
+        console.print(f"  [dim]tavily {data['kind']} {'(cached) ' if data['cached'] else ''}"
+                      f"{data['query'][:90]} → {data['n_results']}[/]")
+    elif type == "step_finished":
+        console.print(f"  [green]✓ {data['step']}[/] [dim]{data['duration_s']}s[/]")
+    elif type == "error":
+        console.print(f"[red]✗ {data['message']}[/]")
+
+
+@app.command()
+def run(
+    repo: str = typer.Argument(..., help="GitHub URL or local path"),
+    package: str = typer.Option(..., help="Package to upgrade, e.g. pydantic"),
+    to: str = typer.Option(..., help='Target version spec, e.g. ">=2,<3"'),
+    routing: str = typer.Option("tiered", help="tiered | all-ultra"),
+    executor: str = typer.Option(None, help="docker | nebius | local (default: $EXECUTOR)"),
+) -> None:
+    """Migrate a repo to a new major version of a package."""
+    from bumpless import events
+    from bumpless.pipeline.run import run_migration
+
+    asyncio.run(check_models())
+    events.add_listener(_printer)
+    result = asyncio.run(run_migration(repo, package, to, routing=routing, executor=executor))
+    t = result["tests"]
+    console.rule("[bold]result")
+    colour = {"green": "green", "partial": "yellow"}.get(result["status"], "red")
+    console.print(f"[bold {colour}]{result['status'].upper()}[/]  {result['package']} "
+                  f"{result['old_version']} → {result['new_version']}  ({result['duration_s']}s)")
+    for k, label in (("old", "old version"), ("new_before", "new version, before fix"), ("after", "after fix")):
+        if k in t:
+            console.print(f"  tests {label:<24} {t[k]['passed']} passed, {t[k]['failed']} failed")
+    rb = result["rulebook"]
+    if rb:
+        console.print(f"  rulebook: {len(rb['rules'])} rules, {rb['official_pages']} official pages")
+    cost = result["cost"]
+    tiers = "  ".join(f"{k} ${v:.4f}" for k, v in cost["by_tier"].items())
+    console.print(f"  cost: [bold]${cost['total_usd']:.4f}[/]  ({tiers})  · {cost['llm_calls']} LLM calls, "
+                  f"{result['tavily']['calls']} Tavily calls")
+    if result["escalations"]:
+        console.print(f"  escalations: {len(result['escalations'])}")
+    for item in result["manual_review"]:
+        console.print(f"  [yellow]needs review:[/] {item}")
+    if result["error"]:
+        console.print(f"  [red]{result['error']}[/]")
+    console.print(f"  workspace: {result['workspace']}")
+    if result["status"] == "failed":
+        raise typer.Exit(1)
+
+
 if __name__ == "__main__":
     app()

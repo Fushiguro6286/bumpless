@@ -6,6 +6,7 @@ readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
 dependencies = [
+    "ruff>=0.6",
     "openai>=1.50",
     "tavily-python>=0.5",
     "fastapi>=0.115",

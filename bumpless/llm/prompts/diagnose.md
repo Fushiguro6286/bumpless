@@ -1,0 +1,33 @@
+You are repairing a migration of a Python repository from `{{package}}` {{from}} to {{to}}.
+The tests below fail after the migration. Find the root cause and fix it.
+
+Rulebook (verified from official sources):
+{{rules}}
+
+Changes made so far (git diff):
+```diff
+{{diff}}
+```
+
+Failing tests and output:
+```
+{{failures}}
+```
+
+Relevant files:
+{{files}}
+
+Reply in this format:
+DIAGNOSIS: <one or two sentences>
+LOOKUP: <if the error is NOT explained by the rulebook, the exact error message to search the web for; else NONE>
+
+Then edit blocks, each preceded by the file path on its own line:
+path/to/file.py
+<<<<<<< SEARCH R003
+exact lines from the current file
+=======
+replacement lines
+>>>>>>> REPLACE
+
+Use the rule id the fix follows, or LEARNED if it follows the LOOKUP result. Never delete tests, add skip/xfail
+markers, or weaken assertions. Fix the code, not the tests (tests may only change to use the new API).
