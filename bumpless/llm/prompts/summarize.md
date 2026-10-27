@@ -8,7 +8,9 @@ Be precise about details a code migration gets wrong: required new arguments (e.
 function signatures (what the function receives and must return), changed defaults (e.g. a field that used to be
 optional becoming required), and renamed config keys. Put those details in NEW and NOTE.
 
-Use only what the page says. Copy API names exactly. If the page describes no breaking changes, reply exactly: NONE
+Use only what the page says. Copy API names exactly. Migration guides and changelogs usually describe many such
+changes, often as before/after code examples: list every one. Reply exactly NONE only if the page has no
+upgrade-related content at all (for example a navigation page).
 
 Page ({{url}}):
 {{text}}

@@ -9,10 +9,6 @@ Notes collected while building Bumpless. Concrete and dated.
 ## Nemotron 3
 - 2026-10-27: Nano spent 56 completion tokens (reasoning) to answer "OK" and had ~7s first-call latency; Super/Ultra answered in 24 tokens, <1s.
 
-## Tavily
-
-## Nebius Serverless
-
 ## Tavily (2026-10-27)
 - `search(include_raw_content="markdown")` saves a separate `extract` call per result; very handy.
 - `map` on a docs site needs the right section: mapping `pydantic.dev` returned 2 URLs; scoping with `select_paths`
@@ -40,3 +36,22 @@ Notes collected while building Bumpless. Concrete and dated.
 - Results are only as official as the domain filter: `include_domains=["github.com"]` for "openai migration guide"
   returned community repos alongside `openai/openai-python/discussions/742`; we rank by the package's own
   repo prefix from PyPI metadata.
+
+## Nemotron 3 (2026-10-27, PR conversation)
+- Super classified free-text review comments ("revert the change to app/storage.py") into a strict JSON intent
+  for ~$0.0002 per comment, correctly in all three live tests (revert, explain, revise). Ultra explaining a diff against the rulebook cited rule IDs and
+  said which edits were *not* rulebook-driven, without being asked to.
+
+## Nebius Serverless
+- Not tried yet (deploy and Jobs executor pending).
+
+## Nemotron 3 (2026-10-27, zero-shot SQLAlchemy)
+- With reasoning off, an "if nothing applies, reply exactly NONE" escape hatch was a strong attractor: on the same
+  40k-char chunk of the SQLAlchemy 2.0 migration guide (full of before/after code), Nano and Super replied `NONE`
+  in 8 of 9 tries. Rewording to "guides usually describe many changes: list every one; NONE only for a page with
+  no upgrade content" gave 5/5 correct extractions. This is likely also why Nano "found nothing" on the openai
+  guide earlier. Worth a note in the Nemotron prompting guide.
+
+## Tavily (2026-10-27, zero-shot SQLAlchemy)
+- `map` on `docs.sqlalchemy.org/en/latest/changelog/` (http or https, `select_paths` scoped to the section)
+  returned 0 URLs, while `search` returned pages from that exact section. Possibly the `/en/latest/` redirect.

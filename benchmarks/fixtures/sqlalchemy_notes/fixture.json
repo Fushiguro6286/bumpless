@@ -1,0 +1,1 @@
+{"package": "sqlalchemy", "target": ">=2,<3", "title": "Notes store (SQLAlchemy 1.4)", "description": "Zero-shot: no recipe. engine.execute, select([...]), string row keys, raw SQL strings, 1.4 autocommit."}
