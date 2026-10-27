@@ -1,0 +1,1 @@
+{"package": "pydantic", "target": ">=2,<3", "title": "Support bot (pydantic v1 + openai 0.28)", "description": "Ticket models on pydantic v1 and reply drafting on openai 0.28: two major upgrades behind. Radar demo."}

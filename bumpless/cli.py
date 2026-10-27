@@ -199,6 +199,30 @@ def bench(
                   f"median cost ${s['median_cost_usd']} · total ${s['total_cost_usd']} · escalations {s['escalations']}")
 
 
+@app.command()
+def radar(repo: str = typer.Argument(..., help="GitHub URL or local path")) -> None:
+    """List dependencies a major version behind, with usage, recipe status, risk and estimated cost."""
+    from bumpless.pipeline.intake import prepare_workspace
+    from bumpless.radar.radar import radar as run_radar
+
+    ws = prepare_workspace(repo, "radar")  # read-only: files are parsed, never executed
+    rows = asyncio.run(run_radar(ws))
+    if not rows:
+        console.print("[green]No pinned dependency is a major version behind.[/]")
+        return
+    table = Table("package", "pinned → latest", "usage", "recipe", "risk", "est. cost")
+    for r in rows:
+        rc, est = r["recipe"], r["estimate"]
+        table.add_row(r["package"], f"{r['spec']} → {r['latest']}", f"{r['files']} files, {r['references']} refs",
+                      f"v{rc['version']}, {rc['verified']} verified" if rc else "none yet", r["risk"],
+                      f"~${est['usd']:.2f}" if est["usd"] is not None else "—")
+    console.print(table)
+    for r in rows:
+        console.print(f"[bold]{r['package']}[/]: {escape(r['risk_reason'])} [dim](estimate basis: {r['estimate']['basis']})[/]")
+        console.print(f"  fix: bumpless run {escape(repo)} --package {r['package']} --to \"{r['target']}\"")
+    console.print("[dim]Estimates come from stored real runs; see the 'est. cost' basis in the web Radar page.[/]")
+
+
 recipes_app = typer.Typer(help="Migration recipes (verified rulebooks).")
 app.add_typer(recipes_app, name="recipes")
 

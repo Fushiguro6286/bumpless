@@ -62,6 +62,12 @@ export interface BenchSummary {
 
 export interface BenchResult { bench_id: string; routing: string; created_at: number; summary: BenchSummary; runs: BenchRow[] }
 
+export interface RadarRow {
+  package: string; spec: string; current: string; latest: string; majors_behind: number; files: number; references: number;
+  recipe: { version: number; rules: number; verified: number } | null; target: string; risk: string; risk_reason: string;
+  estimate: { usd: number | null; basis: string };
+}
+
 async function req<T>(url: string, init?: RequestInit): Promise<T> {
   const r = await fetch(url, init);
   if (!r.ok) {
@@ -79,6 +85,8 @@ export const api = {
   report: (id: string) => req<string>(`/api/runs/${id}/report`),
   recipes: () => req<Recipe[]>("/api/recipes"),
   bench: () => req<BenchResult[]>("/api/bench"),
+  radar: (fixture: string) =>
+    req<{ source: string; rows: RadarRow[] }>("/api/radar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fixture }) }),
   start: (body: { fixture?: string; repo?: string; package: string; target: string; routing: string }) =>
     req<{ run_id: string }>("/api/runs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
 };

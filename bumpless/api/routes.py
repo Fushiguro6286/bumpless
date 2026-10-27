@@ -169,3 +169,26 @@ def list_bench() -> list[dict]:
     """Stored benchmark results (benchmarks/results/*.json), newest first."""
     from bumpless.bench import all_results
     return all_results()
+
+
+class RadarRequest(BaseModel):
+    fixture: str | None = None
+    repo: str | None = None
+
+
+@router.post("/radar")
+async def run_radar(req: RadarRequest) -> dict:
+    """Read-only scan (files are parsed, never executed), so any repo is safe; cloning is limited like runs."""
+    from bumpless.pipeline.intake import prepare_workspace
+    from bumpless.radar.radar import radar
+
+    if req.fixture:
+        if req.fixture not in {f["id"] for f in fixtures()}:
+            raise HTTPException(404, "unknown fixture")
+        source = str(FIXTURES_DIR / req.fixture)
+    elif req.repo and ALLOW_ANY_REPO:
+        source = req.repo
+    else:
+        raise HTTPException(403, "The hosted demo scans bundled fixtures only; use `bumpless radar <repo>` locally.")
+    ws = await asyncio.to_thread(prepare_workspace, source, "radar")
+    return {"source": req.fixture or req.repo, "rows": await radar(ws)}
