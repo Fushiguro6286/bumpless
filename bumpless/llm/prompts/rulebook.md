@@ -14,7 +14,11 @@ Reply with JSON only:
   "source_url": "the SOURCE URL this rule came from, copied exactly"
 }]}
 
-Every rule must come from the notes and cite the SOURCE URL it came from. Do not invent rules. When several sources
+Write one rule per distinct change: never split one change into variants (different method chains, call sites
+or arguments of the same API). Cover as many different changes from the notes as you can.
+Only include changes where the old code stops working, behaves differently or is deprecated. Skip optional new
+styles when the docs say the old API remains supported (a migration should not rewrite working code into a new
+style). Every rule must come from the notes and cite the SOURCE URL it came from. Do not invent rules. When several sources
 describe the same change, cite the official migration guide or documentation rather than discussions or blogs.
 Ignore notes about other products that merely share the name (plugins, frameworks or SDKs built on the package).
 

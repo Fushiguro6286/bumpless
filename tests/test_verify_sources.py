@@ -5,12 +5,12 @@ from bumpless.research.verify_sources import excerpt, mentioned, verify_rules
 
 
 class FakeLLM:
-    def __init__(self, supported: bool, quote: str = ""):
-        self.supported, self.calls, self.quote = supported, 0, quote
+    def __init__(self, supported: bool, quote: str = "", required: bool = True):
+        self.supported, self.calls, self.quote, self.required = supported, 0, quote, required
 
     async def chat(self, task, messages, step="", schema=None, **kw):
         self.calls += 1
-        return schema(supported=self.supported, quote=self.quote)
+        return schema(supported=self.supported, quote=self.quote, required=self.required)
 
 
 def ctx_with(pages: dict, llm) -> SimpleNamespace:
@@ -58,3 +58,9 @@ async def test_evidence_kept_only_when_the_quote_is_on_the_page():
     await verify_rules(ctx_with({PAGE: TEXT}, FakeLLM(True, "use from_attributes=True everywhere")), [made_up])
     assert real.evidence == "orm_mode has been  renamed to from_attributes"
     assert made_up.verified and made_up.evidence == ""
+
+
+async def test_optional_new_style_is_not_applied():
+    optional = rule(id="R009", title="filter_by() to where()")
+    await verify_rules(ctx_with({PAGE: TEXT}, FakeLLM(True, required=False)), [optional])
+    assert not optional.verified and "optional new style" in optional.notes

@@ -24,6 +24,7 @@ MAX_EXCERPT = 12_000
 class Verdict(BaseModel):
     about_package: bool = True
     supported: bool
+    required: bool  # old usage removed / changed / deprecated, not just an optional new style
     quote: str = ""
 
 
@@ -79,11 +80,12 @@ async def verify_rule(ctx: RunContext, rule: Rule, text: str) -> None:
     try:
         v = await ctx.llm.chat("verify_rule", [{"role": "user", "content": prompts.render(
             "verify_rule", package=ctx.package, title=rule.title, old_pattern=rule.old_pattern,
-            new_pattern=rule.new_pattern, url=rule.source_url, text=excerpt(text, hits))}],
+            new_pattern=rule.new_pattern, url=rule.source_url, text=excerpt(text, hits),
+            to=getattr(ctx, "to_major", "") or "the new version")}],
             step="verify_sources", schema=Verdict, max_tokens=3000)
     except LLMOutputError:
-        v = Verdict(supported=False)
-    rule.verified = v.supported and v.about_package
+        v = Verdict(supported=False, required=False)
+    rule.verified = v.supported and v.about_package and v.required
     if rule.verified and _occurs(v.quote, text):
         rule.evidence = v.quote.strip()[:400]
     rule.confidence = (1.0 if rule.source_official else 0.7) if rule.verified else 0.0
@@ -91,6 +93,8 @@ async def verify_rule(ctx: RunContext, rule: Rule, text: str) -> None:
         rule.notes = (rule.notes + f" [unverified: source page is not about {ctx.package}]").strip()
     elif not v.supported:
         rule.notes = (rule.notes + " [unverified: source page does not support the rule]").strip()
+    elif not v.required:
+        rule.notes = (rule.notes + " [not applied: optional new style; the old usage still works]").strip()
 
 
 async def verify_rules(ctx: RunContext, rules: list[Rule]) -> None:
