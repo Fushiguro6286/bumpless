@@ -71,10 +71,16 @@ def install_commands(ws: Path) -> list[str]:
     return cmds
 
 
-def prepare_workspace(source: str, run_id: str) -> Path:
+def prepare_workspace(source: str, run_id: str, ref: str | None = None) -> Path:
+    """`ref`: a commit SHA to pin a remote repo to (benchmarks)."""
     root = Path(tempfile.mkdtemp(prefix=f"bumpless-{run_id}-"))
     ws = root / "repo"
-    if re.match(r"^(https?://|git@)", source):
+    if re.match(r"^(https?://|git@)", source) and ref:
+        repo = git.Repo.init(ws)
+        repo.create_remote("origin", source)
+        repo.git.fetch("--depth", "1", "origin", ref)
+        repo.git.checkout("FETCH_HEAD")
+    elif re.match(r"^(https?://|git@)", source):
         git.Repo.clone_from(source, ws, depth=1)
     else:
         shutil.copytree(Path(source), ws, ignore=IGNORE)

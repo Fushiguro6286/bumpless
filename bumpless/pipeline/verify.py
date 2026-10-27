@@ -82,25 +82,51 @@ async def verify_and_repair(ctx: RunContext) -> TestRun:
                      iteration=it - 1)
         if not failing:
             break
-        reply = await ctx.llm.chat("diagnose", [{"role": "user", "content": _diagnose_prompt(ctx, run, failing)}],
-                                   step="repair", max_tokens=16000)
+        msgs = [{"role": "user", "content": _diagnose_prompt(ctx, run, failing)}]
+        reply = await ctx.llm.chat("diagnose", msgs, step="repair", max_tokens=16000)
         lookup = _field(reply, "LOOKUP")
-        if lookup and lookup.upper() != "NONE" and lookup not in looked_up:
+        if lookup and not lookup.upper().startswith(("NONE", "N/A")) and lookup not in looked_up:
             looked_up.add(lookup)
             ctx.progress("repair", f"Unknown error, searching: {lookup[:120]}", lookup=lookup)
             learned = await learn_from_error(ctx, lookup)
             if learned:
                 ctx.rulebook.rules.extend(learned)
                 ctx.emit("rules_learned", step="repair", rules=[r.model_dump() for r in learned])
-                reply = await ctx.llm.chat("diagnose", [{"role": "user", "content": _diagnose_prompt(
-                    ctx, run, failing)}], step="repair", max_tokens=16000)
+                msgs = [{"role": "user", "content": _diagnose_prompt(ctx, run, failing)}]
+                reply = await ctx.llm.chat("diagnose", msgs, step="repair", max_tokens=16000)
+        if not parse_blocks(reply):  # models sometimes answer with whole files; ask once for the block format
+            msgs += [{"role": "assistant", "content": reply[:6000]},
+                     {"role": "user", "content": FORMAT_NUDGE}]
+            retry = await ctx.llm.chat("diagnose", msgs, step="repair", max_tokens=16000)
+            reply = retry if parse_blocks(retry) else reply
+        snapshot = {p: fsutil.read(ctx.workspace / p) for p in _repo_py_files(ctx)}
         applied = _apply_repair(ctx, reply)
         ctx.progress("repair", f"Iteration {it}: {_field(reply, 'DIAGNOSIS')[:200]} ({applied} edits)",
                      iteration=it, edits=applied)
         if not applied:
             break
-        run = await run_tests(ctx)
+        new_run = await run_tests(ctx)
+        if (new_run.repo_passed, new_run.passed) < (run.repo_passed, run.passed):  # made things worse: undo it
+            # Compare passes, not failures (fixing a collection error turns 1 "failure" into several), and the
+            # repo's own tests first: a fix may legitimately change behavior the characterization recorded.
+            for p, text in snapshot.items():
+                if fsutil.read(ctx.workspace / p) != text:
+                    fsutil.write(ctx.workspace / p, text)
+            ctx.hunks = [h for h in ctx.hunks if h.iteration != it]
+            ctx.progress("repair", f"Iteration {it} made more tests fail ({new_run.repo_passed} repo / {new_run.passed}"
+                         f" total passing vs {run.repo_passed} / {run.passed}); reverted it")
+            continue
+        run = new_run
     return run
+
+
+FORMAT_NUDGE = ("Reply again with the same fixes as SEARCH/REPLACE edit blocks, each preceded by its file path "
+                "on its own line, exactly in the format shown. Do not output whole files.")
+
+
+def _repo_py_files(ctx: RunContext) -> list[str]:
+    from bumpless.pipeline.scan import python_files
+    return [f.relative_to(ctx.workspace).as_posix() for f in python_files(ctx.workspace)]
 
 
 def _diagnose_prompt(ctx: RunContext, run: TestRun, failing: list[str]) -> str:
@@ -119,19 +145,32 @@ def _field(reply: str, name: str) -> str:
 
 def _apply_repair(ctx: RunContext, reply: str) -> int:
     tier = ctx.llm.calls[-1]["tier"]
+    it = sum(1 for c in ctx.llm.calls if c["task"] == "diagnose")
+    changes = [(b.path, b.rule_id, b.search, b.replace) for b in parse_blocks(reply) if b.path]
+    block_paths = {c[0] for c in changes}
+    for path, body in _full_files(reply):  # fallback: whole-file answers (no rule cited -> Low confidence)
+        if path not in block_paths and (ctx.workspace / path).is_file():
+            changes.append((path, "UNCITED", fsutil.read(ctx.workspace / path), body))
     n = 0
-    for b in parse_blocks(reply):
-        if not b.path or not (ctx.workspace / b.path).is_file():
+    for path, rule_id, search, replace in changes:
+        f = ctx.workspace / path
+        if not f.is_file():
             continue
-        f = ctx.workspace / b.path
         before = fsutil.read(f)
-        after = apply_block(before, b.search, b.replace)
-        if after is None or new_errors(b.path, before, after):
+        after = replace if rule_id == "UNCITED" and search == before else apply_block(before, search, replace)
+        if after is None or after == before or new_errors(path, before, after):
             continue
-        if violations := guardrail_violations(b.path, before, after):
+        if violations := guardrail_violations(path, before, after, ctx.repo_names):
             ctx.progress("repair", f"Rejected repair edit: {violations[0]}", rejected=violations)
             continue
         fsutil.write(f, after)
-        ctx.hunks.append(Hunk(b.path, b.rule_id, b.search, b.replace, tier, repaired=True))
+        ctx.hunks.append(Hunk(path, rule_id, search, replace, tier, repaired=True, iteration=it))
         n += 1
     return n
+
+
+_FULL = re.compile(r"^[ \t]*(?P<path>[\w./-]+\.py)[ \t]*\n```(?:python)?\n(?P<body>.*?)^```", re.S | re.M)
+
+
+def _full_files(reply: str) -> list[tuple[str, str]]:
+    return [(m["path"], m["body"]) for m in _FULL.finditer(reply)]

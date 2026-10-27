@@ -24,6 +24,13 @@ import sys
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 from _harness import dump, observe  # noqa: E402,F401
 
+if "pytest" not in sys.modules:  # plain run: apply the repo's conftest setup (pytest loads conftests itself)
+    import importlib.util
+    _root = pathlib.Path(__file__).resolve().parents[2]
+    for _i, _c in enumerate(c for c in (_root / "conftest.py", _root / "tests" / "conftest.py") if c.exists()):
+        _spec = importlib.util.spec_from_file_location(f"_bumpless_conftest{_i}", _c)
+        _spec.loader.exec_module(importlib.util.module_from_spec(_spec))
+
 '''
 PROBE_FOOTER = '''
 
@@ -65,14 +72,48 @@ def source_files(ctx: RunContext) -> str:
     mods = {".".join(f.relative_to(ws).with_suffix("").parts) for f in direct}
     users = [f for f in files if f not in direct and any(m in f.read_text(encoding="utf-8", errors="replace")
                                                          for m in mods)]
+    conftests = [p for p in (ws / "conftest.py", ws / "tests" / "conftest.py") if p.exists()]
     blob, used = [], 0
-    for f in direct + users:
+    for f in direct + users + conftests:
         text = f.read_text(encoding="utf-8", errors="replace")
         if used + len(text) > MAX_FILES_CHARS:
             break
         used += len(text)
         blob.append(f"{f.relative_to(ws).as_posix()}\n```python\n{text}\n```")
     return "\n\n".join(blob)
+
+
+def patches_package(code: str, package: str) -> bool:
+    """True if the probe patches, mocks or assigns attributes of the package under migration: behavior recorded
+    that way is tied to the old API and would block a correct migration."""
+    import ast
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return False
+    names = {package}
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Import):
+            names |= {a.asname or a.name for a in n.names if a.name.split(".")[0] == package}
+
+    def rooted(e) -> bool:
+        while isinstance(e, ast.Attribute):
+            e = e.value
+        return isinstance(e, ast.Name) and e.id in names
+
+    for n in ast.walk(tree):
+        targets = n.targets if isinstance(n, ast.Assign) else [n.target] if isinstance(n, ast.AugAssign) else []
+        if any(isinstance(t, ast.Attribute) and rooted(t) for t in targets):
+            return True
+        if isinstance(n, ast.Call):
+            f = n.func
+            fname = f.attr if isinstance(f, ast.Attribute) else f.id if isinstance(f, ast.Name) else ""
+            if fname in ("patch", "object", "setattr", "patch_object") and n.args:
+                a = n.args[0]
+                if rooted(a) or (isinstance(a, ast.Constant) and isinstance(a.value, str)
+                                 and a.value.split(".")[0] == package):
+                    return True
+    return False
 
 
 def _parse(f: Path):
@@ -112,7 +153,12 @@ async def characterize(ctx: RunContext) -> dict:
         reply = await ctx.llm.chat("probe", [{"role": "user", "content": prompts.render(
             "probe", package=ctx.package, files=files, feedback=feedback,
             **{"from": ctx.from_major, "to": ctx.to_major})}], step="characterize", max_tokens=16000)
-        fsutil.write(d / "_probe.py", PROBE_HEADER + extract_code(reply).strip() + PROBE_FOOTER)
+        code = extract_code(reply).strip()
+        if patches_package(code, ctx.package):
+            feedback = (f"\nYour previous probe patched or mocked `{ctx.package}`. Never do that: call the repository's"
+                        " code as it is, and skip functions that cannot run offline.\n")
+            continue
+        fsutil.write(d / "_probe.py", PROBE_HEADER + code + PROBE_FOOTER)
         first, err = await _run_probe(ctx, ".bumpless/golden1.json")
         if first is not None:
             second, err = await _run_probe(ctx, ".bumpless/golden2.json")
@@ -121,6 +167,7 @@ async def characterize(ctx: RunContext) -> dict:
             if len(golden) >= MIN_OBSERVATIONS:
                 break
             err = f"only {len(golden)} stable observations; add more"
+        ctx.progress("characterize", f"Probe attempt failed: {err.strip().splitlines()[-1][:200] if err.strip() else '?'}")
         feedback = f"\nYour previous probe failed on the current (old) version:\n{err}\nFix it.\n"
     if not golden or len(golden) < MIN_OBSERVATIONS:
         shutil.rmtree(d, ignore_errors=True)

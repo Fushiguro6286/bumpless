@@ -6,7 +6,7 @@ Rulebook (verified from official sources):
 Static scan results (file -> rule ids matched, with line numbers):
 {{scan}}
 
-Files that import {{package}}: {{importers}}
+Files that import {{package}}, or import modules that do: {{importers}}
 
 Decide the order to edit files (models/definitions before their users), which rules apply to each file,
 a risk level, and short notes for the editor. Under manual_review list only concrete problems you can see that cannot be migrated automatically (usually none);

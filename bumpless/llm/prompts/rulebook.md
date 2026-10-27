@@ -7,10 +7,10 @@ touching these names, which the target codebase uses: {{usage}}
 Reply with JSON only:
 {"rules": [{
   "title": "short title",
-  "old_pattern": "old code, e.g. class Config: orm_mode = True",
-  "new_pattern": "new code, e.g. model_config = ConfigDict(from_attributes=True)",
+  "old_pattern": "realistic old code, e.g. class Config: orm_mode = True",
+  "new_pattern": "the complete new code including required arguments, e.g. model_config = ConfigDict(from_attributes=True)",
   "detection_hint": "a Python regex that finds old usages in source lines, e.g. \borm_mode\s*=",
-  "notes": "one or two sentences: behavior differences, gotchas",
+  "notes": "behavior differences and gotchas: changed signatures/return values, changed defaults, required keywords",
   "source_url": "the SOURCE URL this rule came from, copied exactly"
 }]}
 

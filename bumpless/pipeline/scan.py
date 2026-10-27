@@ -10,8 +10,12 @@ from bumpless.llm.schemas import Rule
 SKIP_DIRS = {".git", ".bumpless", ".venv", "venv", "node_modules", "__pycache__", "build", "dist", ".tox"}
 
 
+GENERATED = "tests/_bumpless/"  # Bumpless's own characterization files: never scanned or edited
+
+
 def python_files(ws: Path) -> list[Path]:
-    return sorted(p for p in ws.rglob("*.py") if not SKIP_DIRS & set(p.relative_to(ws).parts))
+    return sorted(p for p in ws.rglob("*.py") if not SKIP_DIRS & set(p.relative_to(ws).parts)
+                  and not p.relative_to(ws).as_posix().startswith(GENERATED))
 
 
 def _tree(path: Path) -> ast.AST | None:
@@ -58,19 +62,40 @@ def compile_hint(rule: Rule) -> re.Pattern | None:
     return re.compile(rf"\b{re.escape(m.group())}\b") if m else None
 
 
+def module_name(ws: Path, f: Path) -> str:
+    parts = list(f.relative_to(ws).with_suffix("").parts)
+    return ".".join(parts[:-1] if parts[-1] == "__init__" else parts)
+
+
+def imported_modules(tree: ast.AST) -> set[str]:
+    out = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            out.update(a.name for a in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            out.add(node.module)
+            out.update(f"{node.module}.{a.name}" for a in node.names)
+    return out
+
+
 def scan(ws: Path, rules: list[Rule], package: str) -> dict[str, dict]:
-    """path -> {"imports": bool, "rules": {rule_id: [line numbers]}} for files that import or match."""
+    """path -> {"imports": bool, "uses": bool, "rules": {rule_id: [lines]}} for files that import the package,
+    import a module that does (one hop, e.g. code calling .dict() on models defined elsewhere), or match a rule."""
     hints = [(r.id, rx) for r in rules if (rx := compile_hint(r))]
+    files = python_files(ws)
+    trees = {f: _tree(f) for f in files}
+    direct = {module_name(ws, f) for f, t in trees.items() if t and imports_package(t, package)}
     out = {}
-    for f in python_files(ws):
+    for f in files:
         text = f.read_text(encoding="utf-8", errors="replace")
-        tree = _tree(f)
+        tree = trees[f]
         matches: dict[str, list[int]] = {}
         for rid, rx in hints:
             lines = sorted({text.count("\n", 0, m.start()) + 1 for m in rx.finditer(text)})
             if lines:
                 matches[rid] = lines
         imports = bool(tree and imports_package(tree, package))
-        if imports or matches:
-            out[f.relative_to(ws).as_posix()] = {"imports": imports, "rules": matches}
+        uses = bool(tree) and not imports and bool(imported_modules(tree) & direct)
+        if imports or uses or matches:
+            out[f.relative_to(ws).as_posix()] = {"imports": imports, "uses": uses, "rules": matches}
     return out

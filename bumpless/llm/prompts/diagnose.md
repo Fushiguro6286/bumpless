@@ -17,7 +17,7 @@ Failing tests and output:
 Relevant files:
 {{files}}
 
-Reply in this format:
+Fix every failure you can see in one reply, not just the first one. Reply in this format:
 DIAGNOSIS: <one or two sentences>
 LOOKUP: <if the error is NOT explained by the rulebook, the exact error message to search the web for; else NONE>
 

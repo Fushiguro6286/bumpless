@@ -13,6 +13,7 @@ from bumpless.llm.schemas import PlanFile, Rule
 from bumpless.pipeline.context import Hunk, RunContext
 from bumpless.pipeline.plan import rules_text
 from bumpless.pipeline.review import guardrail_violations
+from bumpless.pipeline.scan import compile_hint
 
 MAX_PARALLEL_EDITS = 8
 # (escalation level, label): try Nano, retry Nano with the error, then Super, then Ultra.
@@ -89,6 +90,8 @@ def apply_blocks(path: str, text: str, blocks: list[Block]) -> tuple[str, list[s
     errors = []
     for b in blocks:
         out = apply_block(text, b.search, b.replace)
+        if out is None and b.replace.strip() and b.replace.strip() in text and b.search.strip() not in text:
+            continue  # already applied (models sometimes repeat a block)
         if out is None:
             errors.append(f"SEARCH block for {b.rule_id} did not match the file:\n{b.search[:300]}")
         else:
@@ -98,9 +101,13 @@ def apply_blocks(path: str, text: str, blocks: list[Block]) -> tuple[str, list[s
 
 async def edit_file(ctx: RunContext, pf: PlanFile, rules: list[Rule], sem: asyncio.Semaphore) -> list[Hunk]:
     path = ctx.workspace / pf.path
-    original = fsutil.read(path)
+    original = current = fsutil.read(path)
     feedback = reply = ""
-    notes =(pf.notes or "") + (f" Static scan matched: {', '.join(pf.rule_ids)}." if pf.rule_ids else "")
+    notes = (pf.notes or "") + (f" Static scan matched: {', '.join(pf.rule_ids)}." if pf.rule_ids else "")
+    # Completeness check: after edits apply, the matched rules' detection patterns should no longer match.
+    hints = {r.id: rx for r in rules if r.id in pf.rule_ids and (rx := compile_hint(r))}
+    hunks: list[Hunk] = []
+    residual: list[str] = []
     async with sem:
         for n, esc in enumerate(ATTEMPTS):
             tier = tier_for("edit", ctx.llm.routing, esc)
@@ -110,25 +117,42 @@ async def edit_file(ctx: RunContext, pf: PlanFile, rules: list[Rule], sem: async
                 ctx.emit("escalation", step="edit", path=pf.path, tier=tier, message=f"{pf.path} escalated to {tier}")
             reply = await ctx.llm.chat("edit", [{"role": "user", "content": prompts.render(
                 "edit", package=ctx.package, rules=rules_text(rules), notes=notes or "none", path=pf.path,
-                content=original, feedback=feedback, **{"from": ctx.from_major, "to": ctx.to_major})}],
+                content=current, feedback=feedback, **{"from": ctx.from_major, "to": ctx.to_major})}],
                 step="edit", escalation=esc, max_tokens=16000)
             blocks = parse_blocks(reply)
             if not blocks and "NO_CHANGES" in reply:
-                ctx.progress("edit", f"{pf.path}: no changes needed", path=pf.path, tier=tier)
-                return []
-            new, errors = apply_blocks(pf.path, original, blocks)
+                if not hunks:
+                    ctx.progress("edit", f"{pf.path}: no changes needed", path=pf.path, tier=tier, edits=0)
+                    return []
+                break  # the model considers the earlier edits complete
+            new, errors = apply_blocks(pf.path, current, blocks)
             if not blocks:
                 errors = ["Reply contained no edit blocks in the required format."]
             errors += new_errors(pf.path, original, new)
-            errors += guardrail_violations(pf.path, original, new)
-            if not errors:
-                fsutil.write(path, new)
-                ctx.progress("edit", f"{pf.path}: {len(blocks)} edits", path=pf.path, tier=tier, edits=len(blocks))
-                return [Hunk(pf.path, b.rule_id, b.search, b.replace, tier, escalated=esc > 0) for b in blocks]
-            feedback = "\nYour previous attempt failed:\n" + "\n".join(errors)[:3000] + "\nFix these problems.\n"
-    ctx.manual_review.append(f"{pf.path}: automatic edit failed after {len(ATTEMPTS)} attempts")
-    ctx.progress("edit", f"{pf.path}: edit failed, needs human review", path=pf.path, failed=True)
-    return []
+            errors += guardrail_violations(pf.path, original, new, ctx.repo_names)
+            if errors:
+                feedback = "\nYour previous attempt failed:\n" + "\n".join(errors)[:3000] + "\nFix these problems.\n"
+                continue
+            current = new
+            hunks += [Hunk(pf.path, b.rule_id, b.search, b.replace, tier, escalated=esc > 0) for b in blocks]
+            residual = [rid for rid, rx in hints.items() if rx.search(current)]
+            if not residual:
+                break
+            lines = current.split("\n")
+            where = "\n".join(f"- {rid} still matches line {current.count(chr(10), 0, m.start()) + 1}: "
+                              f"{lines[current.count(chr(10), 0, m.start())].strip()}"
+                              for rid in residual if (m := hints[rid].search(current)))
+            feedback = (f"\nYour edits were applied (the file below includes them), but old usages remain:\n{where}\n"
+                        "Migrate them too, or reply NO_CHANGES if they are not usages of the old API.\n")
+    if not hunks:
+        ctx.manual_review.append(f"{pf.path}: automatic edit failed after {len(ATTEMPTS)} attempts")
+        ctx.progress("edit", f"{pf.path}: edit failed, needs human review", path=pf.path, failed=True)
+        return []
+    fsutil.write(path, current)
+    if residual:
+        ctx.manual_review.append(f"{pf.path}: patterns of {', '.join(residual)} still present after editing")
+    ctx.progress("edit", f"{pf.path}: {len(hunks)} edits", path=pf.path, tier=hunks[-1].model_tier, edits=len(hunks))
+    return hunks
 
 
 async def edit_all(ctx: RunContext, rules: list[Rule]) -> None:

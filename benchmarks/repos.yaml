@@ -1,0 +1,8 @@
+# Benchmark repos. Fixtures live in benchmarks/fixtures/; real repos must pin a commit SHA (`ref`)
+# and have a pytest suite that passes on the old version (checked before adding).
+repos:
+  - {name: pydantic_app, kind: fixture, source: benchmarks/fixtures/pydantic_app, package: pydantic, to: ">=2,<3"}
+  - {name: pydantic_inventory, kind: fixture, source: benchmarks/fixtures/pydantic_inventory, package: pydantic, to: ">=2,<3"}
+  - {name: pydantic_orders, kind: fixture, source: benchmarks/fixtures/pydantic_orders, package: pydantic, to: ">=2,<3"}
+  - {name: openai_app, kind: fixture, source: benchmarks/fixtures/openai_app, package: openai, to: ">=1,<2"}
+  - {name: openai_moderator, kind: fixture, source: benchmarks/fixtures/openai_moderator, package: openai, to: ">=1,<2"}

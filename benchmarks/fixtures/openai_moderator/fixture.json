@@ -1,0 +1,1 @@
+{"package": "openai", "target": ">=1,<2", "title": "Comment moderator (openai 0.28)", "description": "Legacy Completion + Moderation endpoints, request_timeout, auth/connection errors, dict-style responses. Tests use a local fake server."}

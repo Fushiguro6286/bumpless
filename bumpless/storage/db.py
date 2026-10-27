@@ -27,6 +27,10 @@ CREATE TABLE IF NOT EXISTS recipe_runs (
     id INTEGER PRIMARY KEY AUTOINCREMENT, recipe TEXT, run_id TEXT, ts REAL, reused INTEGER, status TEXT,
     cost_usd REAL, recipe_version INTEGER
 );
+CREATE TABLE IF NOT EXISTS bench_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, bench_id TEXT, ts REAL, routing TEXT, name TEXT, kind TEXT,
+    run_id TEXT, status TEXT, summary_json TEXT
+);
 CREATE INDEX IF NOT EXISTS events_run ON events(run_id);
 CREATE INDEX IF NOT EXISTS llm_calls_run ON llm_calls(run_id);
 """

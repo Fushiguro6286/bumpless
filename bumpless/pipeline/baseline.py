@@ -37,6 +37,7 @@ def parse_junit(path, output: str) -> TestRun:
             run.skipped += 1
         else:
             run.passed += 1
+            run.repo_passed += not cid.startswith("tests._bumpless")
     return run
 
 

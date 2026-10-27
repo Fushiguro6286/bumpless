@@ -20,6 +20,7 @@ class PinRef:
 @dataclass
 class TestRun:
     passed: int = 0
+    repo_passed: int = 0  # passes outside the generated characterization tests
     failed: int = 0  # failures + errors
     skipped: int = 0
     failing: list[str] = field(default_factory=list)
@@ -30,7 +31,7 @@ class TestRun:
         return self.passed + self.failed + self.skipped
 
     def summary(self) -> dict:
-        return {"passed": self.passed, "failed": self.failed, "skipped": self.skipped,
+        return {"passed": self.passed, "repo_passed": self.repo_passed, "failed": self.failed, "skipped": self.skipped,
                 "total": self.total, "failing": self.failing}
 
 
@@ -44,6 +45,7 @@ class Hunk:
     model_tier: str
     escalated: bool = False
     repaired: bool = False
+    iteration: int = 0  # repair iteration that produced it (0 = initial edit)
 
 
 @dataclass
@@ -70,6 +72,7 @@ class RunContext:
     review: dict = field(default_factory=dict)
     coverage: dict = field(default_factory=dict)
     recipe_reused: bool = False
+    repo_names: set = field(default_factory=set)  # functions/classes the repo defines
     manual_review: list[str] = field(default_factory=list)
     escalations: list[dict] = field(default_factory=list)
     status: str = "running"

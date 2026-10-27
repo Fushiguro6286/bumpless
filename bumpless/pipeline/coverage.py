@@ -66,12 +66,16 @@ def change_coverage(hunks: list[DiffHunk], cov: dict) -> tuple[int, int, dict[st
 
 
 def _provenance(ctx: RunContext, h: DiffHunk):
-    """The latest edit block whose replacement lines appear in this diff hunk."""
+    """The edit block that produced this diff hunk: prefer blocks citing a known rule, then the most
+    overlapping lines, then the latest (an uncited whole-file rewrite must not hide the cited edit)."""
     added = {x.strip() for x in h.added.values() if x.strip()}
-    best = None
-    for e in ctx.hunks:
-        if e.path == h.path and {x.strip() for x in e.replace.splitlines() if x.strip()} & added:
-            best = e
+    known = {r.id for r in ctx.rulebook.rules} if ctx.rulebook else set()
+    best, best_key = None, None
+    for i, e in enumerate(ctx.hunks):
+        overlap = len({x.strip() for x in e.replace.splitlines() if x.strip()} & added) if e.path == h.path else 0
+        key = (e.rule_id in known, overlap, i)
+        if overlap and (best_key is None or key > best_key):
+            best, best_key = e, key
     return best
 
 

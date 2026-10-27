@@ -75,7 +75,8 @@ def build_result(ctx: RunContext, source: str, routing: str, error: str | None, 
 
 
 async def run_migration(source: str, package: str, target: str, routing: str = "tiered",
-                        executor: str | None = None, run_id: str | None = None, open_pr: bool = False) -> dict:
+                        executor: str | None = None, run_id: str | None = None, open_pr: bool = False,
+                        ref: str | None = None) -> dict:
     run_id = run_id or uuid.uuid4().hex[:10]
     t_start = time.time()
     db.insert("runs", {"id": run_id, "created_at": t_start, "repo": source, "package": package, "target": target,
@@ -87,9 +88,10 @@ async def run_migration(source: str, package: str, target: str, routing: str = "
     error, out = None, {}
     try:
         async with step(ctx, "intake"):
-            ctx.workspace = intake.prepare_workspace(source, run_id)
+            ctx.workspace = intake.prepare_workspace(source, run_id, ref)
             ctx.pins = intake.find_pins(ctx.workspace, package)
             ctx.install_cmds = intake.install_commands(ctx.workspace)
+            ctx.repo_names = review.repo_defined_names(ctx.workspace)
             ctx.progress("intake", f"Workspace ready; {len(ctx.pins)} version pin(s) for {package}",
                          pins=[p.__dict__ for p in ctx.pins])
 

@@ -5,6 +5,7 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 
+from bumpless import fsutil
 from bumpless.llm.schemas import Rule, Rulebook
 from bumpless.settings import ROOT
 from bumpless.storage import db
@@ -58,7 +59,7 @@ def save(rb: Rulebook, run_id: str, root: Path | None = None) -> tuple[Rulebook,
             recipe.recipe_version += 1
     p = path_for(rb.package, rb.from_, rb.to, root)
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(recipe.model_dump_json(by_alias=True, indent=1) + "\n", encoding="utf-8")
+    fsutil.write(p, recipe.model_dump_json(by_alias=True, indent=1) + "\n")
     return recipe, changed
 
 

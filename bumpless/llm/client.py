@@ -114,6 +114,16 @@ class LLM:
                 ]
 
     async def _call(self, task, step, tier, messages, max_tokens, temperature) -> str:
+        reasoning = task not in router.NO_REASONING_TASKS
+        text, finish = await self._once(task, step, tier, messages, max_tokens, temperature, reasoning)
+        if finish == "length" and reasoning:
+            # Reasoning ran away and used the whole budget; one retry with reasoning off.
+            events.emit(self.run_id, "llm_retry", {"step": step, "task": task, "tier": tier,
+                                                   "message": f"{task} on {tier} hit max_tokens; retrying without reasoning"})
+            text, _ = await self._once(task, step, tier, messages, max_tokens, temperature, False)
+        return text
+
+    async def _once(self, task, step, tier, messages, max_tokens, temperature, reasoning) -> tuple[str, str]:
         if self.spent >= self.max_cost:
             raise BudgetExceeded(
                 f"Run budget of ${self.max_cost:.2f} reached (spent ${self.spent:.4f}). "
@@ -122,7 +132,8 @@ class LLM:
         model = self.cfg.models[tier]
         t0 = time.perf_counter()
         resp = await self.client.chat.completions.create(
-            model=model, messages=messages, max_tokens=max_tokens, temperature=temperature
+            model=model, messages=messages, max_tokens=max_tokens, temperature=temperature,
+            **({} if reasoning else {"extra_body": {"chat_template_kwargs": {"enable_thinking": False}}}),
         )
         latency = time.perf_counter() - t0
         pt = resp.usage.prompt_tokens if resp.usage else 0
@@ -138,7 +149,8 @@ class LLM:
         self.calls.append(row)
         db.insert("llm_calls", row)
         events.emit(self.run_id, "llm_call", row | {"run_total_usd": self.spent})
-        return strip_reasoning(resp.choices[0].message.content or "")
+        choice = resp.choices[0]
+        return strip_reasoning(choice.message.content or ""), getattr(choice, "finish_reason", None) or "stop"
 
 
 async def check_models(cfg: Settings = settings, client: AsyncOpenAI | None = None) -> dict[str, bool]:

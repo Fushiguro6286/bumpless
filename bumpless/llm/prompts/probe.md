@@ -11,7 +11,11 @@ Rules:
 - Call ONLY the repository's own code. Never call methods or functions of `{{package}}` directly in the probe
   (e.g. no .dict(), .model_dump(), .json(), parse_obj); call the repository functions that do that instead.
   Reading attributes (obj.name) and constructing the repository's classes is fine.
-- Use fixed inputs only: no randomness, no current time (use fixed datetimes), no network, no files.
+- Never patch, mock, monkeypatch or assign attributes of `{{package}}` (that ties the recording to the old API).
+- The repository's conftest.py files (shown below if present) are executed before probe() runs, so their
+  module-level setup applies (e.g. a local fake server or environment variables); pytest fixtures are not available.
+  Skip functions that cannot run offline with that setup.
+- Use fixed inputs only: no randomness, no current time (use fixed datetimes), no internet, no files.
 - Every observe name must be unique and descriptive.
 - Output only a Python code block containing the imports and `def probe():`. Do not define observe.
 

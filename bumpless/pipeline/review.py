@@ -39,7 +39,42 @@ def _test_stats(src: str) -> tuple[int, int, int]:
     return len(asserts) + raises, tests, trivial
 
 
-def guardrail_violations(path: str, before: str, after: str) -> list[str]:
+def _calls_per_test(src: str) -> dict[str, set[str]]:
+    """test function name -> names it calls (plain names and attribute names)."""
+    try:
+        tree = ast.parse(src)
+    except SyntaxError:
+        return {}
+    out = {}
+    for fn in ast.walk(tree):
+        if isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)) and fn.name.startswith("test"):
+            names = set()
+            for n in ast.walk(fn):
+                if isinstance(n, ast.Call):
+                    f = n.func
+                    names.add(f.id if isinstance(f, ast.Name) else f.attr if isinstance(f, ast.Attribute) else "")
+            out[fn.name] = names
+    return out
+
+
+def repo_defined_names(ws) -> set[str]:
+    """Top-level functions and classes defined in the repo's non-test code."""
+    from bumpless.pipeline.scan import python_files
+    names = set()
+    for f in python_files(ws):
+        rel = f.relative_to(ws).as_posix()
+        if is_test_file(rel):
+            continue
+        try:
+            tree = ast.parse(f.read_text(encoding="utf-8", errors="replace"))
+        except SyntaxError:
+            continue
+        names.update(n.name for n in tree.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)))
+    return names
+
+
+def guardrail_violations(path: str, before: str, after: str, repo_names: set[str] | None = None) -> list[str]:
+    """`repo_names`: functions/classes defined by the repo; a test must keep calling the ones it called."""
     v = []
     if CI_PATHS.match(path):
         v.append(f"{path}: CI configuration must not be edited")
@@ -59,6 +94,12 @@ def guardrail_violations(path: str, before: str, after: str) -> list[str]:
             v.append(f"{path}: adds an always-true assertion")
         if len(SKIP_MARK.findall(after)) > len(SKIP_MARK.findall(before)):
             v.append(f"{path}: adds skip/xfail markers")
+        if repo_names:
+            new_calls = _calls_per_test(after)
+            for test, calls in _calls_per_test(before).items():
+                lost = sorted((calls & repo_names) - new_calls.get(test, set()))
+                if lost:
+                    v.append(f"{path}: {test} no longer calls {', '.join(lost)}; tests must keep exercising repo code")
     return v
 
 
@@ -79,7 +120,7 @@ def check_final_diff(ctx: RunContext) -> list[str]:
         except git.GitCommandError:
             before = ""
         after = fsutil.read(ctx.workspace / path) if (ctx.workspace / path).exists() else ""
-        violations += guardrail_violations(path, before, after)
+        violations += guardrail_violations(path, before, after, ctx.repo_names)
     return violations
 
 

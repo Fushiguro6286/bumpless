@@ -11,6 +11,7 @@ class Rule(BaseModel):
     detection_hint: str = ""  # Python regex matched against source lines
     notes: str = ""
     source_url: str
+    evidence: str = ""  # exact quote from the source page, checked to occur on it
     source_official: bool = False
     verified: bool = False
     confidence: float = 0.0

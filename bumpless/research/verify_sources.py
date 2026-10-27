@@ -60,6 +60,16 @@ def excerpt(text: str, tokens: list[str]) -> str:
     return "\n[...]\n".join(out)[:MAX_EXCERPT]
 
 
+def _squash(s: str) -> str:
+    return " ".join(s.split())
+
+
+def _occurs(quote: str, text: str) -> bool:
+    """The model's quote must really be on the page (whitespace-insensitive)."""
+    q = _squash(quote)
+    return len(q) >= 8 and q in _squash(text)
+
+
 async def verify_rule(ctx: RunContext, rule: Rule, text: str) -> None:
     hits = mentioned(rule, text)
     if not hits:  # deterministic gate: the page never names the API, so it cannot support the rule
@@ -74,6 +84,8 @@ async def verify_rule(ctx: RunContext, rule: Rule, text: str) -> None:
     except LLMOutputError:
         v = Verdict(supported=False)
     rule.verified = v.supported and v.about_package
+    if rule.verified and _occurs(v.quote, text):
+        rule.evidence = v.quote.strip()[:400]
     rule.confidence = (1.0 if rule.source_official else 0.7) if rule.verified else 0.0
     if not v.about_package:
         rule.notes = (rule.notes + f" [unverified: source page is not about {ctx.package}]").strip()

@@ -63,3 +63,10 @@ def test_confidence_levels():
     assert confidence(_ctx(edits), h_tested, ran, exe)[0] == "Medium"
     unverified = _ctx([Hunk("app/m.py", "R009", "", "    return u.model_dump()", "nano")])
     assert confidence(unverified, h_tested, ran, exe)[0] == "Low"
+
+
+def test_uncited_rewrite_does_not_hide_the_cited_edit():
+    h_tested = parse_diff(DIFF)[0]
+    edits = [Hunk("app/m.py", "R001", "u.dict()", "    return u.model_dump()", "nano"),
+             Hunk("app/m.py", "UNCITED", "whole file", "x = 1\n    return u.model_dump()\n", "ultra", repaired=True)]
+    assert confidence(_ctx(edits), h_tested, {1, 2, 3}, {1, 2, 3})[0] == "High"

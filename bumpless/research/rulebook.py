@@ -86,18 +86,30 @@ async def discover_sources(ctx: RunContext, fm: str, tm: str) -> Sources:
 async def summarize_pages(ctx: RunContext, src: Sources, fm: str, tm: str) -> dict[str, str]:
     sem = asyncio.Semaphore(6)
 
-    async def one(url: str, chunk: str) -> tuple[str, str]:
+    async def one(url: str, chunk: str, escalation: int = 0) -> tuple[str, str]:
         async with sem:
             text = await ctx.llm.chat("summarize", [{"role": "user", "content": prompts.render(
                 "summarize", package=ctx.package, url=url, text=chunk, **{"from": fm, "to": tm})}],
-                step="research", max_tokens=6000)
+                step="research", max_tokens=6000, escalation=escalation)
             return url, text
 
-    jobs = [one(u, t[i:i + CHUNK_CHARS]) for u, t in src.pages.items() for i in range(0, len(t), CHUNK_CHARS)]
-    notes: dict[str, str] = {}
-    for url, text in await asyncio.gather(*jobs):
-        if text.strip() and text.strip().upper() != "NONE":
-            notes[url] = (notes.get(url, "") + "\n" + text).strip()
+    def chunks(t: str) -> list[str]:
+        return [t[i:i + CHUNK_CHARS] for i in range(0, len(t), CHUNK_CHARS)]
+
+    async def collect(jobs) -> dict[str, str]:
+        out: dict[str, str] = {}
+        for url, text in await asyncio.gather(*jobs):
+            if text.strip() and text.strip().upper() != "NONE":
+                out[url] = (out.get(url, "") + "\n" + text).strip()
+        return out
+
+    notes = await collect([one(u, c) for u, t in src.pages.items() for c in chunks(t)])
+    # Nano sometimes finds nothing on long, oddly formatted official guides: give those a second read by Super.
+    missed = [u for u, t in src.pages.items()
+              if u not in notes and src.official(u) and MIGRATION_WORDS.search(u + t[:300])]
+    if missed:
+        ctx.progress("research", f"{len(missed)} official guide page(s) re-read by Super (Nano found nothing)")
+        notes |= await collect([one(u, c, 1) for u in missed for c in chunks(src.pages[u])])
     return notes
 
 

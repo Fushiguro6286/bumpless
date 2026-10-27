@@ -1,0 +1,1 @@
+{"package": "pydantic", "target": ">=2,<3", "title": "Order book (pydantic v1)", "description": "Custom root types, copy/schema/parse_obj_as, each_item validators, json_encoders, immutable models."}

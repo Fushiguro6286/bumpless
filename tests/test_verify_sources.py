@@ -5,12 +5,12 @@ from bumpless.research.verify_sources import excerpt, mentioned, verify_rules
 
 
 class FakeLLM:
-    def __init__(self, supported: bool):
-        self.supported, self.calls = supported, 0
+    def __init__(self, supported: bool, quote: str = ""):
+        self.supported, self.calls, self.quote = supported, 0, quote
 
     async def chat(self, task, messages, step="", schema=None, **kw):
         self.calls += 1
-        return schema(supported=self.supported, quote="")
+        return schema(supported=self.supported, quote=self.quote)
 
 
 def ctx_with(pages: dict, llm) -> SimpleNamespace:
@@ -50,3 +50,11 @@ def test_mentioned_and_excerpt():
     big = "x " * 50_000 + TEXT + " y" * 50_000
     ex = excerpt(big, ["orm_mode"])
     assert "orm_mode" in ex and len(ex) < 12_001
+
+
+async def test_evidence_kept_only_when_the_quote_is_on_the_page():
+    real, made_up = rule(), rule(id="R002")
+    await verify_rules(ctx_with({PAGE: TEXT}, FakeLLM(True, "orm_mode has been  renamed to from_attributes")), [real])
+    await verify_rules(ctx_with({PAGE: TEXT}, FakeLLM(True, "use from_attributes=True everywhere")), [made_up])
+    assert real.evidence == "orm_mode has been  renamed to from_attributes"
+    assert made_up.verified and made_up.evidence == ""

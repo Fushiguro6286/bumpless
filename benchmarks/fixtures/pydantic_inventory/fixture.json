@@ -1,0 +1,1 @@
+{"package": "pydantic", "target": ">=2,<3", "title": "Inventory catalog (pydantic v1)", "description": "Aliases, pre-validators, frozen models, list constraints, Field.required."}

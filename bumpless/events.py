@@ -1,11 +1,15 @@
-"""Run events: persisted to SQLite and fanned out to live listeners (SSE queues, CLI printer)."""
+"""Run events: persisted to SQLite and fanned out to live listeners (SSE queues, CLI printer).
+
+A listener receives one dict: {"id", "run_id", "ts", "type", "data"}; `id` is the SQLite row id, so a
+stream can replay history and then continue live without gaps or duplicates.
+"""
 
 import time
 from collections.abc import Callable
 
 from bumpless.storage import db
 
-Listener = Callable[[str, str, dict], None]
+Listener = Callable[[dict], None]
 _listeners: list[Listener] = []
 
 
@@ -18,7 +22,10 @@ def remove_listener(fn: Listener) -> None:
         _listeners.remove(fn)
 
 
-def emit(run_id: str | None, type: str, data: dict) -> None:
-    db.insert("events", {"run_id": run_id, "ts": time.time(), "type": type, "data_json": data})
-    for fn in list(_listeners):
-        fn(run_id, type, data)
+def emit(run_id: str | None, type: str, data: dict) -> dict:
+    ts = time.time()
+    eid = db.insert("events", {"run_id": run_id, "ts": ts, "type": type, "data_json": data})
+    event = {"id": eid, "run_id": run_id, "ts": ts, "type": type, "data": data}
+    for fn in list(_listeners):  # copy: a listener may remove itself
+        fn(event)
+    return event

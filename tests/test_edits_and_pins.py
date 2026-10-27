@@ -58,3 +58,25 @@ def test_apply_single_line_fragment():
     assert apply_block(src, "    json.loads(user.json())\n", "    json.loads(user.model_dump_json())\n") == \
         "def f(user):\n    return json.loads(user.model_dump_json())\n"
     assert apply_block("a.json()\nb.json()\n", "x.json()\n", "y") is None
+
+
+def test_scan_follows_one_import_hop(tmp_path):
+    from bumpless.llm.schemas import Rule
+    from bumpless.pipeline.scan import scan
+    (tmp_path / "app").mkdir()
+    (tmp_path / "app" / "__init__.py").write_text("")
+    (tmp_path / "app" / "models.py").write_text("from pydantic import BaseModel\nclass U(BaseModel):\n    x: int\n")
+    (tmp_path / "app" / "store.py").write_text("from app.models import U\ndef f(u):\n    return u.json()\n")
+    (tmp_path / "app" / "other.py").write_text("import os\n")
+    rules = [Rule(id="R001", title="t", old_pattern="parse_obj", new_pattern="model_validate", source_url="u",
+                  detection_hint=r"\bparse_obj\(")]
+    out = scan(tmp_path, rules, "pydantic")
+    assert out["app/models.py"]["imports"] and out["app/store.py"]["uses"]
+    assert "app/other.py" not in out
+
+
+def test_repeated_block_is_not_an_error():
+    from bumpless.pipeline.edit import Block, apply_blocks
+    b = Block(None, "R001", "x = a.dict()\n", "x = a.model_dump()\n")
+    text, errors = apply_blocks("m.py", "x = a.dict()\n", [b, b])
+    assert text == "x = a.model_dump()\n" and errors == []

@@ -1,0 +1,1 @@
+{"package": "openai", "target": ">=1,<2", "title": "Summarizer (openai 0.28)", "description": "Module-level ChatCompletion/Embedding, openai.error exceptions, dict-style responses. Tests use a local fake server."}
