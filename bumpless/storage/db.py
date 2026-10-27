@@ -23,6 +23,10 @@ CREATE TABLE IF NOT EXISTS tavily_calls (
     id INTEGER PRIMARY KEY AUTOINCREMENT, run_id TEXT, ts REAL, kind TEXT, query TEXT,
     n_results INTEGER, cached INTEGER, urls_json TEXT
 );
+CREATE TABLE IF NOT EXISTS recipe_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, recipe TEXT, run_id TEXT, ts REAL, reused INTEGER, status TEXT,
+    cost_usd REAL, recipe_version INTEGER
+);
 CREATE INDEX IF NOT EXISTS events_run ON events(run_id);
 CREATE INDEX IF NOT EXISTS llm_calls_run ON llm_calls(run_id);
 """

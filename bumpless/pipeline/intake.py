@@ -7,6 +7,7 @@ from pathlib import Path
 
 import git
 
+from bumpless import fsutil
 from bumpless.pipeline.context import PinRef
 
 IGNORE = shutil.ignore_patterns(".git", ".venv", "venv", "__pycache__", "node_modules", ".bumpless",
@@ -50,12 +51,12 @@ def apply_pin_bumps(ws: Path, pins: list[PinRef], package: str, target: str) -> 
     changes = []
     for pin in pins:
         f = ws / pin.file
-        lines = f.read_text(encoding="utf-8").split("\n")
+        lines = fsutil.read(f).split("\n")
         new = bump_line(lines[pin.line_no], package, target)
         if new != lines[pin.line_no]:
             changes.append({"file": pin.file, "old": lines[pin.line_no], "new": new})
             lines[pin.line_no] = new
-            f.write_text("\n".join(lines), encoding="utf-8")
+            fsutil.write(f, "\n".join(lines))
     return changes
 
 

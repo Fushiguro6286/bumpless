@@ -4,9 +4,10 @@ Rule: {{title}}
 Old API: {{old_pattern}}
 New API: {{new_pattern}}
 
-A page supports the rule only if it explicitly describes this change (mentions the old and/or the new API
-in this context). Reply with JSON only:
-{"supported": true or false, "quote": "a short exact quote from the page that shows it, or empty"}
+First decide whether the page is about the `{{package}}` library itself (not a different product that shares
+the name, e.g. a framework, plugin or SDK built on top of it). Then decide whether it explicitly describes this
+change (mentions the old and/or the new API in this context). Reply with JSON only:
+{"about_package": true or false, "supported": true or false, "quote": "a short exact quote that shows it, or empty"}
 
 Page ({{url}}):
 {{text}}

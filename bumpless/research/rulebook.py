@@ -59,15 +59,23 @@ async def discover_sources(ctx: RunContext, fm: str, tm: str) -> Sources:
     guide = next((r["url"] for r in hits if src.official(r["url"]) and MIGRATION_WORDS.search(r["url"])), None)
     if guide:
         p = urlparse(guide)
-        # Map the guide's docs section (e.g. docs.pydantic.dev/latest/), not the bare domain.
-        section = p.path.rstrip("/").rsplit("/", 1)[0] + "/"
-        try:
-            urls = await ctx.tavily.map(f"{p.scheme}://{p.netloc}{section}", max_depth=2, limit=80,
-                                        select_paths=[re.escape(section) + ".*"],
-                                        instructions=f"migration guide, breaking changes and changelog for {pkg} {tm}")
-        except Exception as e:  # map is a nice-to-have; search results still give us sources
-            ctx.progress("research", f"site map failed ({type(e).__name__}); using search results only")
-            urls = []
+        # Map the guide's docs section (e.g. docs.pydantic.dev/latest/), not the bare domain; climb up to
+        # two folders if the section is too small to hold the related pages.
+        parts = [x for x in p.path.split("/") if x]
+        urls: list[str] = []
+        for up in (1, 2, 3):
+            if up > len(parts):
+                break
+            section = "/" + "/".join(parts[:-up]) + ("/" if len(parts) > up else "")
+            try:
+                urls = await ctx.tavily.map(f"{p.scheme}://{p.netloc}{section}", max_depth=3, limit=100,
+                                            select_paths=[re.escape(section) + ".*"],
+                                            instructions=f"migration guide, breaking changes, changelog for {pkg} {tm}")
+            except Exception as e:  # map is a nice-to-have; search results still give us sources
+                ctx.progress("research", f"site map failed ({type(e).__name__}); using search results only")
+                break
+            if len(urls) >= 5:
+                break
         related = [u for u in urls if MIGRATION_WORDS.search(u) and norm_url(u) not in src.pages]
         if related:
             for u, text in (await ctx.tavily.extract(related[:MAX_PAGES])).items():

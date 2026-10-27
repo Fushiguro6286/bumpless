@@ -89,6 +89,7 @@ def run(
     to: str = typer.Option(..., help='Target version spec, e.g. ">=2,<3"'),
     routing: str = typer.Option("tiered", help="tiered | all-ultra"),
     executor: str = typer.Option(None, help="docker | nebius | local (default: $EXECUTOR)"),
+    open_pr: bool = typer.Option(False, "--open-pr", help="Push a branch and open a PR (needs GITHUB_TOKEN)"),
 ) -> None:
     """Migrate a repo to a new major version of a package."""
     from bumpless import events
@@ -96,7 +97,7 @@ def run(
 
     asyncio.run(check_models())
     events.add_listener(_printer)
-    result = asyncio.run(run_migration(repo, package, to, routing=routing, executor=executor))
+    result = asyncio.run(run_migration(repo, package, to, routing=routing, executor=executor, open_pr=open_pr))
     t = result["tests"]
     console.rule("[bold]result")
     colour = {"green": "green", "partial": "yellow"}.get(result["status"], "red")
@@ -108,6 +109,24 @@ def run(
     rb = result["rulebook"]
     if rb:
         console.print(f"  rulebook: {len(rb['rules'])} rules, {rb['official_pages']} official pages")
+        verified = sum(r["verified"] for r in rb["rules"])
+        console.print(f"  verified rules: {verified}/{len(rb['rules'])} (unverified rules are never applied)")
+    ch = result.get("characterization") or {}
+    if ch.get("observations"):
+        after_char = [x for x in t.get("after", {}).get("failing", []) if x.startswith("tests._bumpless")]
+        console.print(f"  characterization: {ch['observations']} behaviors recorded on old version; "
+                      f"{ch['new_before']['failed']} differ before fix, {len(after_char)} differ after")
+    rv = result.get("review") or {}
+    if rv:
+        console.print(f"  review: {'approved' if rv['approve'] else 'flagged'}; "
+                      f"{len(rv['violations'])} guardrail violation(s)")
+    cov = result.get("coverage") or {}
+    if cov.get("measured"):
+        pct = f"{cov['percent']}%" if cov["percent"] is not None else "n/a"
+        console.print(f"  verified change coverage: [bold]{pct}[/] ({cov['executed_changed_lines']}/"
+                      f"{cov['executable_changed_lines']} changed lines executed) · confidence {cov['by_confidence']}")
+    if result.get("recipe_reused"):
+        console.print("  [cyan]recipe reused: research skipped[/]")
     cost = result["cost"]
     tiers = "  ".join(f"{k} ${v:.4f}" for k, v in cost["by_tier"].items())
     console.print(f"  cost: [bold]${cost['total_usd']:.4f}[/]  ({tiers})  · {cost['llm_calls']} LLM calls, "
@@ -119,6 +138,12 @@ def run(
     if result["error"]:
         console.print(f"  [red]{result['error']}[/]")
     console.print(f"  workspace: {result['workspace']}")
+    o = result.get("output") or {}
+    if o.get("pr_url"):
+        console.print(f"  [bold green]PR:[/] {o['pr_url']}")
+    elif o.get("report"):
+        console.print(f"  report: {o['report']}")
+        console.print(f"  patch:  {o['patch']}")
     if result["status"] == "failed":
         raise typer.Exit(1)
 

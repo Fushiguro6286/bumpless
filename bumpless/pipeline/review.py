@@ -6,6 +6,7 @@ import re
 import git
 from pydantic import BaseModel
 
+from bumpless import fsutil
 from bumpless.llm import prompts
 from bumpless.llm.client import LLMOutputError
 from bumpless.pipeline.context import RunContext
@@ -45,6 +46,8 @@ def guardrail_violations(path: str, before: str, after: str) -> list[str]:
     added = set(after.splitlines()) - set(before.splitlines())
     if any(SECRET.search(line) for line in added):
         v.append(f"{path}: change adds something that looks like a secret")
+    if path.startswith(GENERATED) and before:
+        v.append(f"{path}: generated characterization tests must not be edited")
     if is_test_file(path) and not path.startswith(GENERATED):
         a0, t0, z0 = _test_stats(before)
         a1, t1, z1 = _test_stats(after)
@@ -75,7 +78,7 @@ def check_final_diff(ctx: RunContext) -> list[str]:
             before = repo.git.show(f"HEAD:{path}")
         except git.GitCommandError:
             before = ""
-        after = (ctx.workspace / path).read_text(encoding="utf-8") if (ctx.workspace / path).exists() else ""
+        after = fsutil.read(ctx.workspace / path) if (ctx.workspace / path).exists() else ""
         violations += guardrail_violations(path, before, after)
     return violations
 

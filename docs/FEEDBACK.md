@@ -12,3 +12,16 @@ Notes collected while building Bumpless. Concrete and dated.
 ## Tavily
 
 ## Nebius Serverless
+
+## Tavily (2026-10-27)
+- `search(include_raw_content="markdown")` saves a separate `extract` call per result; very handy.
+- `map` on a docs site needs the right section: mapping `pydantic.dev` returned 2 URLs; scoping with `select_paths`
+  and climbing up a folder when the section is small fixed it. A "map the section this page belongs to" option would help.
+- Search for "pydantic changelog" surfaced the *Pydantic AI* changelog on the same official domain. Domain filters
+  can't separate sibling products; we added an "is this page about package X" check in our Nano verifier.
+
+## Nemotron 3 (2026-10-27)
+- Nano occasionally degenerates (16,000 completion tokens of repetition) on code-edit prompts; a repetition
+  penalty or a lower default max_tokens would help. Our escalation to Super/Ultra recovers.
+- Nano answering from memory about pydantic v2 invented changes ("Field aliases now always replace...").
+  Grounding every rule in a fetched page is necessary, not optional.

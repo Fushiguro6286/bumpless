@@ -14,6 +14,8 @@ Reply with JSON only:
   "source_url": "the SOURCE URL this rule came from, copied exactly"
 }]}
 
-Every rule must come from the notes and cite the SOURCE URL it came from. Do not invent rules.
+Every rule must come from the notes and cite the SOURCE URL it came from. Do not invent rules. When several sources
+describe the same change, cite the official migration guide or documentation rather than discussions or blogs.
+Ignore notes about other products that merely share the name (plugins, frameworks or SDKs built on the package).
 
 {{notes}}

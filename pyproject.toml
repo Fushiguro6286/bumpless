@@ -39,7 +39,7 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 
 [tool.ruff]
-line-length = 120
+line-length = 130
 extend-exclude = ["benchmarks/fixtures", "frontend"]
 
 [tool.ruff.lint]

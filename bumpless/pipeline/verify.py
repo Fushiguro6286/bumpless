@@ -3,6 +3,9 @@ errors the rulebook does not explain."""
 
 import re
 
+import git
+
+from bumpless import fsutil
 from bumpless.llm import prompts
 from bumpless.llm.schemas import Rule
 from bumpless.pipeline.baseline import run_tests
@@ -22,8 +25,10 @@ def new_failures(ctx: RunContext, run: TestRun) -> list[str]:
 
 
 def git_diff(ctx: RunContext, *args: str) -> str:
-    import git
-    return git.Repo(ctx.workspace).git.diff(*args)
+    """Diff of the working tree, including new files (staged as intent-to-add)."""
+    repo = git.Repo(ctx.workspace)
+    repo.git.add("-A", "-N", "--", ".")
+    return repo.git.diff(*args)
 
 
 def relevant_files(ctx: RunContext, output: str) -> str:
@@ -61,6 +66,8 @@ async def learn_from_error(ctx: RunContext, error: str) -> list[Rule]:
     notes = await summarize_pages(ctx, fresh, ctx.from_major, ctx.to_major)
     rules = await synthesize(ctx, fresh, notes, ctx.from_major, ctx.to_major, [error], max_rules=3)
     rules = number_rules(keep_cited(rules, src), start=len(ctx.rulebook.rules) + 1)
+    from bumpless.research.verify_sources import verify_rules
+    await verify_rules(ctx, rules)  # learned rules pass the same source check before they can be used
     for r in rules:
         r.learned_from_run = ctx.run_id
     return rules
@@ -98,8 +105,10 @@ async def verify_and_repair(ctx: RunContext) -> TestRun:
 
 def _diagnose_prompt(ctx: RunContext, run: TestRun, failing: list[str]) -> str:
     failures = "\n".join(failing) + "\n\n" + run.output[-12000:]
-    return prompts.render("diagnose", package=ctx.package, rules=rules_text(ctx.rulebook.rules),
-                          diff=git_diff(ctx)[-20000:], failures=failures, files=relevant_files(ctx, run.output),
+    verified = [r for r in ctx.rulebook.rules if r.verified]
+    return prompts.render("diagnose", package=ctx.package, rules=rules_text(verified),
+                          diff=git_diff(ctx, "--", ".", ":(exclude)tests/_bumpless")[-20000:], failures=failures,
+                          files=relevant_files(ctx, run.output),
                           **{"from": ctx.from_major, "to": ctx.to_major})
 
 
@@ -115,14 +124,14 @@ def _apply_repair(ctx: RunContext, reply: str) -> int:
         if not b.path or not (ctx.workspace / b.path).is_file():
             continue
         f = ctx.workspace / b.path
-        before = f.read_text(encoding="utf-8")
+        before = fsutil.read(f)
         after = apply_block(before, b.search, b.replace)
         if after is None or new_errors(b.path, before, after):
             continue
         if violations := guardrail_violations(b.path, before, after):
             ctx.progress("repair", f"Rejected repair edit: {violations[0]}", rejected=violations)
             continue
-        f.write_text(after, encoding="utf-8")
+        fsutil.write(f, after)
         ctx.hunks.append(Hunk(b.path, b.rule_id, b.search, b.replace, tier, repaired=True))
         n += 1
     return n

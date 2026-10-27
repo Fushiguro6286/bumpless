@@ -6,6 +6,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 
+from bumpless import fsutil
 from bumpless.llm import prompts
 from bumpless.llm.router import tier_for
 from bumpless.llm.schemas import PlanFile, Rule
@@ -45,6 +46,10 @@ def apply_block(text: str, search: str, replace: str) -> str | None:
     """Exact match first, then a whitespace-tolerant line match (re-indenting the replacement)."""
     if search.strip() and search in text:
         return text.replace(search, replace, 1)
+    # A fragment of one line (e.g. "user.json()"): replace it if it occurs exactly once.
+    frag = search.strip()
+    if frag and "\n" not in frag and "\n" not in replace.strip() and text.count(frag) == 1:
+        return text.replace(frag, replace.strip(), 1)
     s_lines = search.rstrip("\n").split("\n")
     while s_lines and not s_lines[0].strip():
         s_lines.pop(0)
@@ -93,14 +98,15 @@ def apply_blocks(path: str, text: str, blocks: list[Block]) -> tuple[str, list[s
 
 async def edit_file(ctx: RunContext, pf: PlanFile, rules: list[Rule], sem: asyncio.Semaphore) -> list[Hunk]:
     path = ctx.workspace / pf.path
-    original = path.read_text(encoding="utf-8")
-    feedback = ""
-    notes = (pf.notes or "") + (f" Static scan matched: {', '.join(pf.rule_ids)}." if pf.rule_ids else "")
+    original = fsutil.read(path)
+    feedback = reply = ""
+    notes =(pf.notes or "") + (f" Static scan matched: {', '.join(pf.rule_ids)}." if pf.rule_ids else "")
     async with sem:
         for n, esc in enumerate(ATTEMPTS):
             tier = tier_for("edit", ctx.llm.routing, esc)
             if n >= 2:
-                ctx.escalations.append({"path": pf.path, "tier": tier, "reason": feedback[:300]})
+                ctx.escalations.append({"path": pf.path, "tier": tier, "reason": feedback[:300],
+                                        "previous_reply": reply[:600]})
                 ctx.emit("escalation", step="edit", path=pf.path, tier=tier, message=f"{pf.path} escalated to {tier}")
             reply = await ctx.llm.chat("edit", [{"role": "user", "content": prompts.render(
                 "edit", package=ctx.package, rules=rules_text(rules), notes=notes or "none", path=pf.path,
@@ -116,7 +122,7 @@ async def edit_file(ctx: RunContext, pf: PlanFile, rules: list[Rule], sem: async
             errors += new_errors(pf.path, original, new)
             errors += guardrail_violations(pf.path, original, new)
             if not errors:
-                path.write_text(new, encoding="utf-8")
+                fsutil.write(path, new)
                 ctx.progress("edit", f"{pf.path}: {len(blocks)} edits", path=pf.path, tier=tier, edits=len(blocks))
                 return [Hunk(pf.path, b.rule_id, b.search, b.replace, tier, escalated=esc > 0) for b in blocks]
             feedback = "\nYour previous attempt failed:\n" + "\n".join(errors)[:3000] + "\nFix these problems.\n"

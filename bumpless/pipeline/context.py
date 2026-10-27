@@ -66,6 +66,10 @@ class RunContext:
     scan: dict = field(default_factory=dict)
     plan: Plan | None = None
     hunks: list[Hunk] = field(default_factory=list)
+    characterization: dict = field(default_factory=dict)
+    review: dict = field(default_factory=dict)
+    coverage: dict = field(default_factory=dict)
+    recipe_reused: bool = False
     manual_review: list[str] = field(default_factory=list)
     escalations: list[dict] = field(default_factory=list)
     status: str = "running"

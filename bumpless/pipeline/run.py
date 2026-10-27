@@ -7,15 +7,19 @@ import uuid
 from contextlib import asynccontextmanager
 
 from bumpless.llm.client import LLM, BudgetExceeded
-from bumpless.pipeline import baseline, edit, intake, plan, scan, verify
+from bumpless.pipeline import baseline, characterize, coverage, edit, intake, output, plan, review, scan, verify
 from bumpless.pipeline.context import RunContext
-from bumpless.research import rulebook, verify_sources
+from bumpless.recipes import store
+from bumpless.research import freshness
+from bumpless.research.rulebook import norm_url
 from bumpless.research.tavily_client import Tavily
 from bumpless.sandbox.base import get_executor
 from bumpless.settings import settings
 from bumpless.storage import db
 
-STEPS = ["intake", "baseline", "research", "plan", "edit", "verify", "output"]
+STEPS = ["intake", "baseline", "research", "characterize", "plan", "edit", "verify", "coverage", "review",
+         "output", "learn"]
+CHAR = "tests._bumpless"
 
 
 @asynccontextmanager
@@ -32,14 +36,46 @@ def final_status(ctx: RunContext) -> str:
     if not after:
         return "failed"
     remaining = verify.new_failures(ctx, after)
-    if not remaining and after.passed >= ctx.tests["old"].passed:
+    repo_failing = [t for t in remaining if not t.startswith(CHAR)]
+    if not remaining and after.passed >= ctx.tests["old"].passed and not ctx.review.get("violations"):
         return "green"
+    if not repo_failing and after.passed >= ctx.tests["old"].passed:
+        return "partial"  # repo tests green, but recorded behavior changed or a guardrail fired
     before = len(verify.new_failures(ctx, ctx.tests["new_before"]))
     return "partial" if len(remaining) < before or after.passed > ctx.tests["new_before"].passed else "failed"
 
 
+def tavily_usage(ctx: RunContext) -> dict:
+    rules = ctx.rulebook.rules if ctx.rulebook else []
+    calls = []
+    for c in ctx.tavily.calls:
+        urls = {norm_url(u) for u in c["urls_json"]}
+        calls.append({"kind": c["kind"], "query": c["query"], "results": c["n_results"], "cached": bool(c["cached"]),
+                      "urls": c["urls_json"][:20], "rules": [r.id for r in rules if r.source_url in urls]})
+    return {"calls": len(calls), "by_kind": {k: sum(c["kind"] == k for c in calls) for k in ("search", "extract", "map")},
+            "log": calls}
+
+
+def build_result(ctx: RunContext, source: str, routing: str, error: str | None, t_start: float) -> dict:
+    return {
+        "run_id": ctx.run_id, "status": ctx.status, "error": error, "source": source, "package": ctx.package,
+        "target": ctx.target, "routing": routing, "executor": ctx.executor.name, "workspace": str(ctx.workspace),
+        "old_version": ctx.old_version, "new_version": ctx.new_version,
+        "tests": {k: v.summary() for k, v in ctx.tests.items()},
+        "rulebook": ctx.rulebook.model_dump(by_alias=True) if ctx.rulebook else None,
+        "recipe_reused": ctx.recipe_reused,
+        "plan": ctx.plan.model_dump() if ctx.plan else None,
+        "characterization": ctx.characterization, "coverage": ctx.coverage, "review": ctx.review,
+        "hunks": [h.__dict__ for h in ctx.hunks], "escalations": ctx.escalations,
+        "manual_review": list(dict.fromkeys(ctx.manual_review)),
+        "cost": {"total_usd": ctx.llm.spent, "by_tier": ctx.llm.by_tier, "llm_calls": len(ctx.llm.calls)},
+        "tavily": tavily_usage(ctx),
+        "duration_s": round(time.time() - t_start, 1),
+    }
+
+
 async def run_migration(source: str, package: str, target: str, routing: str = "tiered",
-                        executor: str | None = None, run_id: str | None = None) -> dict:
+                        executor: str | None = None, run_id: str | None = None, open_pr: bool = False) -> dict:
     run_id = run_id or uuid.uuid4().hex[:10]
     t_start = time.time()
     db.insert("runs", {"id": run_id, "created_at": t_start, "repo": source, "package": package, "target": target,
@@ -48,7 +84,7 @@ async def run_migration(source: str, package: str, target: str, routing: str = "
     ctx = RunContext(run_id=run_id, workspace=None, package=package, target=target,
                      llm=LLM(run_id, routing), tavily=Tavily(run_id), executor=ex)
     ctx.emit("run_started", source=source, package=package, target=target, routing=routing, executor=ex.name)
-    error = None
+    error, out = None, {}
     try:
         async with step(ctx, "intake"):
             ctx.workspace = intake.prepare_workspace(source, run_id)
@@ -62,14 +98,18 @@ async def run_migration(source: str, package: str, target: str, routing: str = "
 
         async with step(ctx, "research"):
             usage = scan.usage_identifiers(ctx.workspace, package)
-            ctx.rulebook = await rulebook.research(ctx, usage)
-            await verify_sources.verify_rules(ctx, ctx.rulebook.rules)
+            ctx.rulebook, ctx.recipe_reused = await freshness.get_rulebook(ctx, usage)
             for r in ctx.rulebook.rules:
                 if not r.verified:
                     ctx.manual_review.append(f"Unverified rule {r.id} not applied: {r.title} ({r.source_url})")
             ctx.emit("rulebook", step="research", rulebook=ctx.rulebook.model_dump(by_alias=True))
-            ctx.progress("research", f"Rulebook built from {ctx.rulebook.official_pages} official pages: "
-                         f"{len(ctx.rulebook.rules)} rules, {sum(r.verified for r in ctx.rulebook.rules)} verified")
+            verified = sum(r.verified for r in ctx.rulebook.rules)
+            if not ctx.recipe_reused:
+                ctx.progress("research", f"Rulebook built from {ctx.rulebook.official_pages} official pages: "
+                             f"{len(ctx.rulebook.rules)} rules, {verified} verified")
+
+        async with step(ctx, "characterize"):
+            ctx.characterization = await characterize.characterize(ctx)
 
         rules = [r for r in ctx.rulebook.rules if r.verified]  # unverified rules are never applied
         async with step(ctx, "plan"):
@@ -87,34 +127,41 @@ async def run_migration(source: str, package: str, target: str, routing: str = "
         async with step(ctx, "verify"):
             await baseline.install(ctx)  # the bumped pins must resolve
             ctx.tests["after"] = await verify.verify_and_repair(ctx)
+            for t in verify.new_failures(ctx, ctx.tests["after"]):
+                if t.startswith(CHAR):
+                    ctx.manual_review.append(f"Behavior changed vs {package} {ctx.old_version}: {t.split('::')[-1]}")
 
+        async with step(ctx, "coverage"):
+            ctx.coverage = await coverage.measure(ctx)
+
+        async with step(ctx, "review"):
+            ctx.review = await review.review(ctx)
+
+        ctx.status = final_status(ctx)
         async with step(ctx, "output"):
-            patch = ctx.workspace / ".bumpless" / "bumpless.patch"
-            patch.write_text(verify.git_diff(ctx) + "\n", encoding="utf-8")
-            ctx.progress("output", f"Patch written to {patch}")
+            out = output.output(ctx, source, build_result(ctx, source, routing, None, t_start), open_pr)
+            ctx.progress("output", f"PR opened: {out['pr_url']}" if out["pr_url"] else
+                         f"Patch + report written ({out['pr_skipped_reason']})", **out)
+
+        async with step(ctx, "learn"):
+            if ctx.status != "failed":
+                recipe, changed = store.save(ctx.rulebook, run_id)
+                ctx.progress("learn", f"Recipe {recipe.package} {recipe.from_}→{recipe.to} v{recipe.recipe_version} "
+                             + ("updated" if changed else "unchanged"), recipe_version=recipe.recipe_version)
     except BudgetExceeded as e:
         error = str(e)
+        ctx.emit("error", message=error)
     except Exception as e:  # surface a readable error; full traceback goes to the event log
         error = f"{type(e).__name__}: {e}"
         ctx.emit("error", message=error, traceback=traceback.format_exc()[-4000:])
     finally:
         await ex.close()
 
-    ctx.status = "failed" if error else final_status(ctx)
-    result = {
-        "run_id": run_id, "status": ctx.status, "error": error, "package": package, "target": target,
-        "routing": routing, "executor": ex.name, "workspace": str(ctx.workspace),
-        "old_version": ctx.old_version, "new_version": ctx.new_version,
-        "tests": {k: v.summary() for k, v in ctx.tests.items()},
-        "rulebook": ctx.rulebook.model_dump(by_alias=True) if ctx.rulebook else None,
-        "plan": ctx.plan.model_dump() if ctx.plan else None,
-        "hunks": [h.__dict__ for h in ctx.hunks], "escalations": ctx.escalations,
-        "manual_review": ctx.manual_review,
-        "cost": {"total_usd": ctx.llm.spent, "by_tier": ctx.llm.by_tier, "llm_calls": len(ctx.llm.calls)},
-        "tavily": {"calls": len(ctx.tavily.calls),
-                   "by_kind": {k: sum(c["kind"] == k for c in ctx.tavily.calls) for k in ("search", "extract", "map")}},
-        "duration_s": round(time.time() - t_start, 1),
-    }
+    if error:
+        ctx.status = "failed"
+    result = build_result(ctx, source, routing, error, t_start) | {"output": out}
+    if ctx.rulebook:
+        store.record_run(ctx.rulebook, run_id, ctx.recipe_reused, ctx.status, ctx.llm.spent)
     with db.connect() as conn:
         conn.execute("UPDATE runs SET status=?, result_json=? WHERE id=?", (ctx.status, json.dumps(result), run_id))
     ctx.emit("run_finished", status=ctx.status, error=error, cost_usd=ctx.llm.spent, duration_s=result["duration_s"])

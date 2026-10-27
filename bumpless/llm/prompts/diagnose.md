@@ -29,5 +29,9 @@ exact lines from the current file
 replacement lines
 >>>>>>> REPLACE
 
+Failures in tests/_bumpless/test_characterization.py mean observable behavior changed compared with the old
+version (the test name says which observation); fix the code to restore the old behavior and never edit
+tests/_bumpless. If a difference is an unavoidable, documented change of the new version, say so in DIAGNOSIS
+and make no edit for it.
 Use the rule id the fix follows, or LEARNED if it follows the LOOKUP result. Never delete tests, add skip/xfail
 markers, or weaken assertions. Fix the code, not the tests (tests may only change to use the new API).

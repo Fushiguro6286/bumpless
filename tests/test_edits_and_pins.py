@@ -51,3 +51,10 @@ def test_new_errors_only_reports_introduced_problems():
     errs = new_errors("f.py", before, "print(undefined_a)\nConfigDict()\n")
     assert len(errs) == 1 and "ConfigDict" in errs[0]
     assert new_errors("f.py", before, "def (:\n")[0].startswith("SyntaxError")
+
+
+def test_apply_single_line_fragment():
+    src = "def f(user):\n    return json.loads(user.json())\n"
+    assert apply_block(src, "    json.loads(user.json())\n", "    json.loads(user.model_dump_json())\n") == \
+        "def f(user):\n    return json.loads(user.model_dump_json())\n"
+    assert apply_block("a.json()\nb.json()\n", "x.json()\n", "y") is None

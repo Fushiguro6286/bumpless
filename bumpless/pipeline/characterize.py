@@ -6,6 +6,7 @@ import re
 import shutil
 from pathlib import Path
 
+from bumpless import fsutil
 from bumpless.llm import prompts
 from bumpless.pipeline import baseline
 from bumpless.pipeline.context import RunContext
@@ -111,7 +112,7 @@ async def characterize(ctx: RunContext) -> dict:
         reply = await ctx.llm.chat("probe", [{"role": "user", "content": prompts.render(
             "probe", package=ctx.package, files=files, feedback=feedback,
             **{"from": ctx.from_major, "to": ctx.to_major})}], step="characterize", max_tokens=16000)
-        (d / "_probe.py").write_text(PROBE_HEADER + extract_code(reply).strip() + PROBE_FOOTER, encoding="utf-8")
+        fsutil.write(d / "_probe.py", PROBE_HEADER + extract_code(reply).strip() + PROBE_FOOTER)
         first, err = await _run_probe(ctx, ".bumpless/golden1.json")
         if first is not None:
             second, err = await _run_probe(ctx, ".bumpless/golden2.json")
@@ -128,9 +129,8 @@ async def characterize(ctx: RunContext) -> dict:
         await baseline.install(ctx, [f'uv pip install -q "{ctx.package}{ctx.target}"'])
         return {"observations": 0}
 
-    (d / "golden.json").write_text(json.dumps(golden, sort_keys=True, indent=1), encoding="utf-8")
-    (d / "test_characterization.py").write_text(
-        TEST_FILE.format(package=ctx.package, old_version=ctx.old_version), encoding="utf-8")
+    fsutil.write(d / "golden.json", json.dumps(golden, sort_keys=True, indent=1) + "\n")
+    fsutil.write(d / "test_characterization.py", TEST_FILE.format(package=ctx.package, old_version=ctx.old_version))
     old = await baseline.run_tests(ctx, CHAR_DIR)
     ctx.progress("characterize", f"{len(golden)} behaviors recorded on {ctx.package} {ctx.old_version}; "
                  f"characterization tests on old version: {old.passed} passed, {old.failed} failed")

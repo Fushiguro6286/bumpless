@@ -22,6 +22,7 @@ MAX_EXCERPT = 12_000
 
 
 class Verdict(BaseModel):
+    about_package: bool = True
     supported: bool
     quote: str = ""
 
@@ -72,9 +73,11 @@ async def verify_rule(ctx: RunContext, rule: Rule, text: str) -> None:
             step="verify_sources", schema=Verdict, max_tokens=3000)
     except LLMOutputError:
         v = Verdict(supported=False)
-    rule.verified = v.supported
-    rule.confidence = (1.0 if rule.source_official else 0.7) if v.supported else 0.0
-    if not v.supported:
+    rule.verified = v.supported and v.about_package
+    rule.confidence = (1.0 if rule.source_official else 0.7) if rule.verified else 0.0
+    if not v.about_package:
+        rule.notes = (rule.notes + f" [unverified: source page is not about {ctx.package}]").strip()
+    elif not v.supported:
         rule.notes = (rule.notes + " [unverified: source page does not support the rule]").strip()
 
 
