@@ -191,6 +191,10 @@ checking `author_association` before any checkout and refusing fork PRs.
 Dependabot-triggered workflows can only read **Dependabot secrets**, so add `NEBIUS_API_KEY` and
 `TAVILY_API_KEY` there (and as Actions secrets for the comment job and manual runs).
 
+The action calls Token Factory by default. To use a free NVIDIA API catalog key instead, put that key in the
+`NEBIUS_API_KEY` secret and uncomment the `base-url` and `model-*` lines in the example workflow (they are not
+secret, so they are written in the workflow file).
+
 ## How it is built
 
 ```

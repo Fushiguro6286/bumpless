@@ -23,6 +23,13 @@ inputs:
   nebius-api-key:
     description: Nebius Token Factory API key
     required: true
+  base-url:
+    description: OpenAI-compatible endpoint (empty = Nebius Token Factory). Free option https://integrate.api.nvidia.com/v1
+    required: false
+    default: ""
+  model-nano: {description: Model ID for the Nano tier (empty = Token Factory default), required: false, default: ""}
+  model-super: {description: Model ID for the Super tier (empty = Token Factory default), required: false, default: ""}
+  model-ultra: {description: Model ID for the Ultra tier (empty = Token Factory default), required: false, default: ""}
   tavily-api-key:
     description: Tavily API key
     required: true
@@ -50,6 +57,10 @@ runs:
       env:
         NEBIUS_API_KEY: ${{ inputs.nebius-api-key }}
         TAVILY_API_KEY: ${{ inputs.tavily-api-key }}
+        NEBIUS_BASE_URL: ${{ inputs.base-url }}
+        MODEL_NANO: ${{ inputs.model-nano }}
+        MODEL_SUPER: ${{ inputs.model-super }}
+        MODEL_ULTRA: ${{ inputs.model-ultra }}
         EXECUTOR: local   # the Actions runner is the sandbox
         PACKAGE: ${{ inputs.package }}
         TARGET: ${{ inputs.target }}

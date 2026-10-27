@@ -26,7 +26,9 @@ class Settings:
 
     @classmethod
     def from_env(cls) -> "Settings":
-        e = os.environ.get
+        def e(key: str, default: str = "") -> str:
+            return os.environ.get(key) or default  # empty (e.g. an unset Action input) means default
+
         return cls(
             nebius_api_key=e("NEBIUS_API_KEY", ""),
             nebius_base_url=e("NEBIUS_BASE_URL", "https://api.tokenfactory.nebius.com/v1/"),

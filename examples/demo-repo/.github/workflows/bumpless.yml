@@ -52,6 +52,11 @@ jobs:
           pr-number: ${{ github.event.pull_request.number }}
           nebius-api-key: ${{ secrets.NEBIUS_API_KEY }}
           tavily-api-key: ${{ secrets.TAVILY_API_KEY }}
+          # Free NVIDIA API catalog key instead of Token Factory (not secret; plain values):
+          base-url: https://integrate.api.nvidia.com/v1
+          model-nano: nvidia/nemotron-3.5-lightning-30b-a3b
+          model-super: nvidia/nemotron-3.5-super-vl-120b-a12b
+          model-ultra: nvidia/nemotron-3-ultra-550b-a55b
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
   # `@bumpless <request>` comments on the PR: revise / explain / revert. Needs NEBIUS_API_KEY as an *Actions* secret
@@ -92,4 +97,9 @@ jobs:
           association: ${{ github.event.comment.author_association }}
           user: ${{ github.event.comment.user.login }}
           nebius-api-key: ${{ secrets.NEBIUS_API_KEY }}
+          # Free NVIDIA API catalog key instead of Token Factory (not secret; plain values):
+          base-url: https://integrate.api.nvidia.com/v1
+          model-nano: nvidia/nemotron-3.5-lightning-30b-a3b
+          model-super: nvidia/nemotron-3.5-super-vl-120b-a12b
+          model-ultra: nvidia/nemotron-3-ultra-550b-a55b
           github-token: ${{ secrets.GITHUB_TOKEN }}
