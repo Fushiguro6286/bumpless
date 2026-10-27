@@ -32,7 +32,7 @@ def doctor() -> None:
 
 
 async def _doctor() -> None:
-    console.print(f"[bold]Token Factory[/] {settings.nebius_base_url}")
+    console.print(f"[bold]LLM endpoint[/] {settings.nebius_base_url}")
     try:
         await check_models()
     except ModelConfigError as e:

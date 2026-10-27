@@ -41,6 +41,12 @@ def table(r: dict) -> str:
     return "\n".join(lines)
 
 
+def provider(r: dict) -> str:
+    # Results from before this field existed were all run on Token Factory.
+    host = r.get("provider") or "api.tokenfactory.nebius.com"
+    return "Token Factory" if host == "api.tokenfactory.nebius.com" else f"{host} (cost = Token Factory list price, not billed)"
+
+
 def summary(r: dict) -> str:
     s = r["summary"]
     infra = f"; {s['infra_errors']} stopped by an account/budget error, not counted" if s.get("infra_errors") else ""
@@ -107,11 +113,12 @@ def main() -> None:
                       f"averaged ${sum(reused) / len(reused):.4f}.", ""]
     if results:  # every run, not just the latest: results vary between runs of the same code
         parts += ["## All benchmark runs", "",
-                  "| Benchmark | Routing | Code | Green | Partial | Failed | Tests fixed | Total cost | Median time |",
-                  "|---|---|---|---|---|---|---|---|---|"]
+                  "| Benchmark | Routing | Code | Provider | Green | Partial | Failed | Tests fixed | Total cost | Median time |",
+                  "|---|---|---|---|---|---|---|---|---|---|"]
         for r in results:
             s = r["summary"]
-            parts.append(f"| `{r['bench_id']}` | {r['routing']} | {r.get('commit') or 'not recorded'} | {s['green']} | "
+            parts.append(f"| `{r['bench_id']}` | {r['routing']} | {r.get('commit') or 'not recorded'} | "
+                         f"{provider(r)} | {s['green']} | "
                          f"{s['partial']} | {s['failed']} | {s['tests_fixed']}/{s['tests_failing_before_fix']} | "
                          f"${s['total_cost_usd']:.3f} | {fmt(s['median_duration_s'], 's', 0)} |")
         parts.append("")

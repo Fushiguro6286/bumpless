@@ -6,12 +6,14 @@ import statistics
 import time
 import uuid
 from pathlib import Path
+from urllib.parse import urlparse
 
 import git
 import yaml
 
 from bumpless import fsutil
 from bumpless.pipeline.run import CHAR, run_migration
+from bumpless.settings import settings
 from bumpless.storage import db
 
 RESULTS_DIR = Path("benchmarks/results")
@@ -113,6 +115,7 @@ async def bench(path: Path, routing: str = "tiered", executor: str | None = None
 
     rows = await asyncio.gather(*[one(r) for r in repos])
     out = {"bench_id": bench_id, "routing": routing, "created_at": time.time(), "commit": _commit(),
+           "provider": urlparse(settings.nebius_base_url).hostname,
            "summary": aggregate(rows), "runs": rows}
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     fsutil.write(RESULTS_DIR / f"{bench_id}.json", json.dumps(out, indent=2) + "\n")

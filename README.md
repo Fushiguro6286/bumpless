@@ -150,6 +150,12 @@ uv run bumpless doctor        # checks the models are served, pings each tier, s
 uv run bumpless run benchmarks/fixtures/pydantic_app --package pydantic --to ">=2,<3"
 ```
 
+**No Token Factory credits?** The same Nemotron 3 models are on NVIDIA's API catalog with a free trial key from
+[build.nvidia.com](https://build.nvidia.com). Point the OpenAI-compatible settings there (commented block in
+`.env.example`): `NEBIUS_BASE_URL=https://integrate.api.nvidia.com/v1` and the `MODEL_*` IDs listed there. Costs
+are then Token Factory list-price estimates, not money spent, and benchmark results record which provider ran
+them.
+
 Each run writes `bumpless.patch` (a `git am`-able commit) and `report.md` (the PR body) and prints the run ID.
 
 | Command | What it does |
@@ -171,6 +177,9 @@ citation per change, a cost breakdown, a PR conversation panel). Also: Runs, Rec
 The hosted demo is protected: a daily spend cap (`DEMO_DAILY_BUDGET_USD`), one live run at a time, an optional
 `DEMO_PASSWORD`, and arbitrary repo URLs only when `ALLOW_ANY_REPO=1`. When live runs are unavailable it
 says why and offers **replays**: real recorded runs streamed with their original timing and labeled as replays.
+
+To host it: `docker build -t bumpless-web .` builds the app image, and `render.yaml` deploys it free on Render
+(see [docs/DEPLOY.md](docs/DEPLOY.md)).
 
 ## GitHub Action (Dependabot integration)
 
@@ -212,7 +221,8 @@ text is passed to models as a request and is never executed.
   before the API-key secrets were added, so it posted the setup error and failed the job, as designed. **Not run
   yet:** the migration itself on Actions, pushing the fix to the PR branch, and the `@bumpless` comment job on
   GitHub.
-- **Not run yet:** the hosted deployment.
+- **Hosted deployment:** the app image (`Dockerfile`) was built and checked locally with no keys (replays,
+  benchmarks, recipes work; live runs refused with a message). Not deployed to a public URL yet.
 - **Not implemented:** the Nebius Serverless Jobs executor (`EXECUTOR=nebius` raises a clear error; use `docker`).
 - Benchmarks are on fixture repos written for this project. Real-world repos are not benchmarked yet.
 - Python + pytest only. Code paths that no test executes can only be verified by reading, and the report marks

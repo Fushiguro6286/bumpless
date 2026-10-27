@@ -48,10 +48,10 @@ Each mode was run once per code version, and results vary between runs of the sa
 
 ## All benchmark runs
 
-| Benchmark | Routing | Code | Green | Partial | Failed | Tests fixed | Total cost | Median time |
-|---|---|---|---|---|---|---|---|---|
-| `20261027-175218-tiered` | tiered | 32b8f7f | 3 | 2 | 0 | 29/37 | $0.510 | 134.0s |
-| `20261027-173406-tiered` | tiered | 67a9c8e+dirty | 3 | 2 | 0 | 30/37 | $0.672 | 286.0s |
-| `20261027-170459-tiered` | tiered | 588636c+dirty | 5 | 0 | 0 | 37/37 | $0.556 | 339.0s |
-| `20261027-165705-all-ultra` | all-ultra | 588636c+dirty | 5 | 0 | 0 | 37/37 | $0.707 | 120.0s |
-| `20261027-164204-tiered` | tiered | ee41e62+dirty | 3 | 2 | 0 | 29/37 | $0.682 | 264.0s |
+| Benchmark | Routing | Code | Provider | Green | Partial | Failed | Tests fixed | Total cost | Median time |
+|---|---|---|---|---|---|---|---|---|---|
+| `20261027-175218-tiered` | tiered | 32b8f7f | Token Factory | 3 | 2 | 0 | 29/37 | $0.510 | 134.0s |
+| `20261027-173406-tiered` | tiered | 67a9c8e+dirty | Token Factory | 3 | 2 | 0 | 30/37 | $0.672 | 286.0s |
+| `20261027-170459-tiered` | tiered | 588636c+dirty | Token Factory | 5 | 0 | 0 | 37/37 | $0.556 | 339.0s |
+| `20261027-165705-all-ultra` | all-ultra | 588636c+dirty | Token Factory | 5 | 0 | 0 | 37/37 | $0.707 | 120.0s |
+| `20261027-164204-tiered` | tiered | ee41e62+dirty | Token Factory | 3 | 2 | 0 | 29/37 | $0.682 | 264.0s |
