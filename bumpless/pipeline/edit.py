@@ -99,6 +99,17 @@ def apply_blocks(path: str, text: str, blocks: list[Block]) -> tuple[str, list[s
     return text, errors
 
 
+def _where(text: str, hints: dict, ids: list[str]) -> str:
+    """'- R031 still matches line 12: @root_validator' for each rule whose detection pattern still matches."""
+    lines = text.split("\n")
+    out = []
+    for rid in ids:
+        if m := hints[rid].search(text):
+            n = text.count("\n", 0, m.start())
+            out.append(f"- {rid} still matches line {n + 1}: {lines[n].strip()}")
+    return "\n".join(out)
+
+
 async def edit_file(ctx: RunContext, pf: PlanFile, rules: list[Rule], sem: asyncio.Semaphore) -> list[Hunk]:
     path = ctx.workspace / pf.path
     original = current = fsutil.read(path)
@@ -121,6 +132,12 @@ async def edit_file(ctx: RunContext, pf: PlanFile, rules: list[Rule], sem: async
                 step="edit", escalation=esc, max_tokens=16000)
             blocks = parse_blocks(reply)
             if not blocks and "NO_CHANGES" in reply:
+                residual = [rid for rid, rx in hints.items() if rx.search(current)]
+                if residual and n < len(ATTEMPTS) - 1:  # old patterns still match: a second (stronger) look
+                    feedback = (f"\nYou replied NO_CHANGES, but the detection patterns still match:\n"
+                                f"{_where(current, hints, residual)}\nMigrate these usages. Reply NO_CHANGES only if "
+                                "they are truly not usages of the old API.\n")
+                    continue
                 if not hunks:
                     ctx.progress("edit", f"{pf.path}: no changes needed", path=pf.path, tier=tier, edits=0)
                     return []
@@ -138,11 +155,8 @@ async def edit_file(ctx: RunContext, pf: PlanFile, rules: list[Rule], sem: async
             residual = [rid for rid, rx in hints.items() if rx.search(current)]
             if not residual:
                 break
-            lines = current.split("\n")
-            where = "\n".join(f"- {rid} still matches line {current.count(chr(10), 0, m.start()) + 1}: "
-                              f"{lines[current.count(chr(10), 0, m.start())].strip()}"
-                              for rid in residual if (m := hints[rid].search(current)))
-            feedback = (f"\nYour edits were applied (the file below includes them), but old usages remain:\n{where}\n"
+            feedback = (f"\nYour edits were applied (the file below includes them), but old usages remain:\n"
+                        f"{_where(current, hints, residual)}\n"
                         "Migrate them too, or reply NO_CHANGES if they are not usages of the old API.\n")
     if not hunks:
         ctx.manual_review.append(f"{pf.path}: automatic edit failed after {len(ATTEMPTS)} attempts")

@@ -80,3 +80,38 @@ def test_repeated_block_is_not_an_error():
     b = Block(None, "R001", "x = a.dict()\n", "x = a.model_dump()\n")
     text, errors = apply_blocks("m.py", "x = a.dict()\n", [b, b])
     assert text == "x = a.model_dump()\n" and errors == []
+
+
+async def test_premature_no_changes_gets_a_second_look(tmp_path):
+    import asyncio
+    from types import SimpleNamespace
+
+    from bumpless.llm.schemas import PlanFile, Rule
+    from bumpless.pipeline.edit import edit_file
+
+    (tmp_path / "m.py").write_text("from x import model_validator, root_validator\n\n\nclass C:\n    orm_mode = True\n\n\n"
+                                   "@root_validator\ndef f(): pass\n")
+    replies = iter([
+        "<<<<<<< SEARCH R001\n    orm_mode = True\n=======\n    from_attributes = True\n>>>>>>> REPLACE\n",
+        "NO_CHANGES",
+        "<<<<<<< SEARCH R002\n@root_validator\n=======\n@model_validator(mode='before')\n>>>>>>> REPLACE\n",
+    ])
+
+    class FakeLLM:
+        routing = "tiered"
+
+        async def chat(self, *a, **k):
+            return next(replies)
+
+    events = []
+    ctx = SimpleNamespace(workspace=tmp_path, llm=FakeLLM(), package="pydantic", from_major="1", to_major="2",
+                          repo_names=set(), escalations=[], manual_review=[],
+                          emit=lambda *a, **k: events.append(a), progress=lambda *a, **k: None)
+    rules = [Rule(id="R001", title="orm_mode", old_pattern="orm_mode = True", new_pattern="from_attributes = True",
+                  detection_hint=r"\borm_mode\b", source_url="u"),
+             Rule(id="R002", title="root_validator", old_pattern="@root_validator", new_pattern="@model_validator",
+                  detection_hint=r"@root_validator\b", source_url="u")]
+    hunks = await edit_file(ctx, PlanFile(path="m.py", rule_ids=["R001", "R002"]), rules, asyncio.Semaphore(1))
+    text = (tmp_path / "m.py").read_text()
+    assert [h.rule_id for h in hunks] == ["R001", "R002"]
+    assert "from_attributes" in text and "@model_validator(mode='before')" in text and not ctx.manual_review
