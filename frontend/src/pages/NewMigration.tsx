@@ -76,7 +76,7 @@ export default function NewMigration() {
               className="mt-1 w-full cursor-not-allowed rounded-lg border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-ink-400" />
             <p className="mt-1 text-xs text-ink-400">
               The hosted demo only runs bundled fixtures (it never executes untrusted code). Run any repo with
-              <code className="mx-1 rounded bg-ink-700 px-1">bumpless run</code> or the GitHub Action.
+              <code className="mx-1 rounded bg-ink-700 px-1 text-ink-300">bumpless run</code> or the GitHub Action.
             </p>
           </div>
         </Card>
