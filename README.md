@@ -247,7 +247,9 @@ text is passed to models as a request and is never executed.
   verified change coverage, $0.075 est., 342 s. Before the secrets were added, the same workflow posted a setup
   error and failed the job, as designed. **Limits:** a push made with the workflow's `GITHUB_TOKEN` does not start
   new workflow runs (a GitHub rule), so the PR's own test check still shows the Dependabot commit's red result
-  until the next push. **Not run yet:** the `@bumpless` comment job on GitHub (tested through the API only).
+  until the next push. **The `@bumpless` comment job also ran on GitHub:** `@bumpless explain the change to
+  app/models.py` from the repo owner got a reply citing the rules behind each change, in about a minute for
+  $0.0074 est. Revise and revert were tested through the API, not on GitHub.
 - **Hosted demo:** https://bumpless.onrender.com on Render's free plan, deployed with no API keys. Checked: every page, the 5 replays,
   benchmarks and recipes load; live runs are refused with a message pointing to the replays. Live runs on the
   hosted server have not been run (the free plan's 512 MB is likely too small for a migration).
