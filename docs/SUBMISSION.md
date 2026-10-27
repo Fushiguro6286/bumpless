@@ -6,7 +6,7 @@
 |---|---|
 | Project | Bumpless |
 | Tagline | Dependabot bumps the version. Bumpless makes it pass. |
-| Repository | TODO (public, MIT) |
+| Repository | https://github.com/Fushiguro6286/bumpless (MIT) · demo repo: https://github.com/Fushiguro6286/bumpless-demo |
 | Live demo | TODO (replays work without credits; live runs are budget-capped) |
 | Video (≤ 3 min) | TODO |
 

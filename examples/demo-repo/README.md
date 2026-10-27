@@ -7,8 +7,7 @@ Bumpless pushes a migration commit and comments a report on the PR.
 ## Set up (once)
 
 1. Push this folder as its own GitHub repository.
-2. In `.github/workflows/bumpless.yml`, replace `YOUR_GITHUB_USER/bumpless` with the repository that holds
-   Bumpless (it must be public, or in the same account with Actions access allowed).
+2. The workflow uses the Bumpless action from https://github.com/Fushiguro6286/bumpless (or your fork).
 3. Add `NEBIUS_API_KEY` and `TAVILY_API_KEY` under **Settings → Secrets and variables → Dependabot**, and again
    under **Actions** (the `@bumpless` comment job and manual runs read Actions secrets).
 4. **Settings → Actions → General → Workflow permissions:** allow read and write, and tick **Allow GitHub

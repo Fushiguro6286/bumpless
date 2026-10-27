@@ -206,7 +206,13 @@ text is passed to models as a request and is never executed.
 - Works and was run end to end: the CLI pipeline, the web UI against a local server, recipe reuse and freshness,
   Radar, replays, the benchmark harness, and the `@bumpless` conversation through the API (revert, explain and
   revise were each tested on a fixture run).
-- **Not run yet:** opening PRs on GitHub, the GitHub Action on a real Dependabot PR, the hosted deployment.
+- **GitHub Action, partly run:** on [bumpless-demo](https://github.com/Fushiguro6286/bumpless-demo), Dependabot
+  opened [PR #1](https://github.com/Fushiguro6286/bumpless-demo/pull/1) (pydantic 1.10.18 → 2.14.1, tests red).
+  The workflow installed Bumpless from this repo, detected the red major bump and commented on the PR. It ran
+  before the API-key secrets were added, so it posted the setup error and failed the job, as designed. **Not run
+  yet:** the migration itself on Actions, pushing the fix to the PR branch, and the `@bumpless` comment job on
+  GitHub.
+- **Not run yet:** the hosted deployment.
 - **Not implemented:** the Nebius Serverless Jobs executor (`EXECUTOR=nebius` raises a clear error; use `docker`).
 - Benchmarks are on fixture repos written for this project. Real-world repos are not benchmarked yet.
 - Python + pytest only. Code paths that no test executes can only be verified by reading, and the report marks

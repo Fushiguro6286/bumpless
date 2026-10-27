@@ -44,7 +44,7 @@ jobs:
       - name: Bumpless
         # Manual runs always migrate; Dependabot PRs only on a major bump whose tests fail.
         if: github.event_name == 'workflow_dispatch' || (steps.tests.outputs.red == 'true' && startsWith(steps.meta.outputs.update-type, 'version-update:semver-major'))
-        uses: YOUR_GITHUB_USER/bumpless/action@main
+        uses: Fushiguro6286/bumpless/action@main
         with:
           package: ${{ inputs.package || steps.meta.outputs.dependency-names }}
           target: ${{ inputs.target || format('=={0}', steps.meta.outputs.new-version) }}
@@ -85,7 +85,7 @@ jobs:
         run: git config user.name "bumpless[bot]" && git config user.email "bumpless@users.noreply.github.com"
 
       - if: steps.gate.outputs.ok == 'true'
-        uses: YOUR_GITHUB_USER/bumpless/action/comment@main
+        uses: Fushiguro6286/bumpless/action/comment@main
         with:
           pr-number: ${{ github.event.issue.number }}
           comment-body: ${{ github.event.comment.body }}
