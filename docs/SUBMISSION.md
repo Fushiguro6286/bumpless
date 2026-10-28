@@ -8,7 +8,7 @@
 | Tagline | Dependabot bumps the version. Bumpless makes it pass. |
 | Repository | https://github.com/Fushiguro6286/bumpless (MIT) · demo repo: https://github.com/Fushiguro6286/bumpless-demo |
 | Live demo | https://bumpless.onrender.com (recorded real runs; first visit after idle takes about a minute) |
-| Video (≤ 3 min) | 1:46 — upload `bumpless-demo.mp4` and paste the link here |
+| Video (≤ 3 min) | 2:30 — upload `bumpless-demo.mp4` and paste the link here |
 
 ## Inspiration
 
