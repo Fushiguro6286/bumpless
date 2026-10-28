@@ -11,3 +11,6 @@ data/
 frontend/node_modules/
 frontend/dist/
 .qodo/
+graphify-out/cache/
+graphify-out/.graphify_*
+graphify-out/manifest.json
