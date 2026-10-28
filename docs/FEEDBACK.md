@@ -14,27 +14,27 @@ Notes collected while building Bumpless. Concrete and dated.
 - `map` on a docs site needs the right section: mapping `pydantic.dev` returned 2 URLs; scoping with `select_paths`
   and climbing up a folder when the section is small fixed it. A "map the section this page belongs to" option would help.
 - Search for "pydantic changelog" surfaced the *Pydantic AI* changelog on the same official domain. Domain filters
-  can't separate sibling products; we added an "is this page about package X" check in our Nano verifier.
+  can't separate sibling products; I added an "is this page about package X" check in my Nano verifier.
 
 ## Nemotron 3 (2026-10-27)
 - Nano occasionally degenerates (16,000 completion tokens of repetition) on code-edit prompts; a repetition
-  penalty or a lower default max_tokens would help. Our escalation to Super/Ultra recovers.
+  penalty or a lower default max_tokens would help. My escalation to Super/Ultra recovers.
 - Nano answering from memory about pydantic v2 invented changes ("Field aliases now always replace...").
   Grounding every rule in a fetched page is necessary, not optional.
 - Nano (reasoning on or off) answered `NONE` ("no breaking changes") for every 40k-char chunk of the official
   openai v1 migration guide (a GitHub Discussion whose body arrives as one huge Markdown table cell). Super
-  (reasoning off) extracted precise OLD/NEW code from the same chunk for ~$0.005. We now re-read official guide
+  (reasoning off) extracted precise OLD/NEW code from the same chunk for ~$0.005. I now re-read official guide
   pages one tier up when Nano finds nothing. A "this content is long/structured, consider a bigger model" signal,
   or Nano robustness to table-wrapped prose, would help.
 - With reasoning off, Super/Nano are fast and good at extraction tasks; `chat_template_kwargs.enable_thinking=false`
-  cut our research step from 236 s to 137 s. Worth documenting prominently on Token Factory.
+  cut my research step from 236 s to 137 s. Worth documenting prominently on Token Factory.
 
 ## Tavily (2026-10-27, later)
 - GitHub Discussions pages come back with lots of UI boilerplate ("Uh oh! There was an error while loading.
   Please reload this page." repeated, `{{title}}` template placeholders) and the post body flattened into a table
   cell. Stripping known GitHub chrome in `raw_content` would make these pages much easier for models to use.
 - Results are only as official as the domain filter: `include_domains=["github.com"]` for "openai migration guide"
-  returned community repos alongside `openai/openai-python/discussions/742`; we rank by the package's own
+  returned community repos alongside `openai/openai-python/discussions/742`; I rank by the package's own
   repo prefix from PyPI metadata.
 
 ## Nemotron 3 (2026-10-27, PR conversation)
@@ -56,7 +56,7 @@ Notes collected while building Bumpless. Concrete and dated.
 - `map` on `docs.sqlalchemy.org/en/latest/changelog/` (http or https, `select_paths` scoped to the section)
   returned 0 URLs, while `search` returned pages from that exact section. Possibly the `/en/latest/` redirect.
 
-## Known limit of our own verifier (2026-10-27)
+## Known limit of my own verifier (2026-10-27)
 - The "is this change required?" check (Nano, reasoning off) is conservative and can be wrong in the safe
   direction: it marked pydantic's `__modify_schema__` → `__get_pydantic_json_schema__` as an optional new style,
   although v2 rejects the old hook. Such a rule is kept in the recipe but not applied; repair can still fix it.
@@ -69,5 +69,5 @@ Notes collected while building Bumpless. Concrete and dated.
 - 2026-10-28: the trial tier rate-limits bursts (429 after ~30 parallel Nano calls in 11 s). The OpenAI SDK's built-in
   retries span seconds, so the client now waits 10/20/40 s on a 429 before giving up. Nemotron 3.5 Super wrote invalid
   rulebook JSON 3 times in a row on SQLAlchemy; the last retry now goes one tier up.
-- 2026-10-28: example edit blocks in our prompts used real-looking rule ids (`SEARCH R001`, `SEARCH R003`), and models
+- 2026-10-28: example edit blocks in my prompts used real-looking rule ids (`SEARCH R001`, `SEARCH R003`), and models
   copied them as citations. A `RULE_ID` placeholder fixed it (the next run cited 4 different relevant rules).

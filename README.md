@@ -46,7 +46,7 @@ flowchart LR
   L -.-> D
 ```
 
-## How we use NVIDIA Nemotron + Nebius Token Factory
+## How I use NVIDIA Nemotron + Nebius Token Factory
 
 Every model call goes to Nemotron 3 on **Nebius Token Factory** through its OpenAI-compatible API
 (`https://api.tokenfactory.nebius.com/v1/`, the official `openai` SDK). `bumpless doctor` checks the model IDs
@@ -79,7 +79,7 @@ Nano and Super are fast, accurate extractors. That cut the research step from 23
 for edits cut tiered median run time from 286 s to 134 s. A wording change in one prompt stopped both models
 answering `NONE` on guide pages that were full of code. Details are in [docs/FEEDBACK.md](docs/FEEDBACK.md).
 
-## How we use Tavily
+## How I use Tavily
 
 | What | How | Real count* |
 |---|---|---|

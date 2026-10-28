@@ -14,7 +14,7 @@
 
 Dependabot is great at noticing that `pydantic` 2 is out, and useless at what comes next. A major bump opens a
 red PR, and then a person spends an afternoon reading a migration guide, grepping for old APIs, rewriting them
-and hoping the tests cover it. Those PRs pile up. We wanted an agent that does that afternoon's work, and shows
+and hoping the tests cover it. Those PRs pile up. I wanted an agent that does that afternoon's work, and shows
 enough evidence that a reviewer can trust it.
 
 ## What it does
@@ -34,19 +34,19 @@ Point Bumpless at a repo and a target version (or let the GitHub Action do it on
 7. Verified rulebooks become **recipes** reused on the next repo. **Radar** shows a repo's upgrade backlog with risk
    and cost estimates.
 
-## How we built it
+## How I built it
 
 - **Python + FastAPI + SQLite**, a Typer CLI, and a React/Vite/Tailwind UI with a live run view over SSE.
 - **Nebius Token Factory** (OpenAI-compatible API) for every model call, with per-call cost accounting and caps.
-- **NVIDIA Nemotron 3 Nano / Super / Ultra** with task-based routing and escalation, and an all-Ultra mode we
+- **NVIDIA Nemotron 3 Nano / Super / Ultra** with task-based routing and escalation, and an all-Ultra mode I
   benchmark against.
 - **Tavily** search (raw markdown), extract and map, cached in SQLite, with source verification, recipe
   freshness and error lookup.
-- **Nebius Serverless:** planned for hosting and for a Jobs sandbox executor, not done in time. We say so in the
+- **Nebius Serverless:** planned for hosting and for a Jobs sandbox executor, not done in time. I say so in the
   README.
 - A benchmark harness that stores every run with its commit, plus replays of real runs for the demo.
 
-## Challenges we ran into
+## Challenges I ran into
 
 - **Rules that are true but optional.** On SQLAlchemy, a rule like "use `where()` instead of `filter_by()`" was
   supported by the docs but only applies to the new query style. Applying it broke working code. Verification
@@ -55,25 +55,25 @@ Point Bumpless at a repo and a target version (or let the GitHub Action do it on
   9 tries said `NONE` on a guide page full of before/after code. A reworded prompt got 5 of 5.
 - **Reasoning budgets.** With reasoning on, Nano/Super sometimes spent their whole 16k-token budget thinking
   about an edit. Edits now run with reasoning off, which halved tiered run time.
-- **Honest benchmarks.** Results vary between runs of the same code, so we list every run and its commit
+- **Honest benchmarks.** Results vary between runs of the same code, so I list every run and its commit
   instead of the best one.
 
-## Accomplishments we're proud of
+## Accomplishments I'm proud of
 
-- pydantic v1 → v2 and openai 0.28 → 1.x migrations green on our fixtures, with every change cited to an
+- pydantic v1 → v2 and openai 0.28 → 1.x migrations green on my fixtures, with every change cited to an
   official source and covered by tests (all-Ultra benchmark: 5/5 green, 37/37 broken tests fixed, $0.71 total).
 - A real Dependabot PR fixed end to end by the GitHub Action: it detected the red major bump, migrated on the
   Actions runner, pushed the commit and commented the report (0 → 32 tests passing).
 - Verified change coverage and characterization tests: evidence, not just a green check.
-- A zero-shot SQLAlchemy 1.4 → 2.0 migration went green on its first try, and we published the runs that
+- A zero-shot SQLAlchemy 1.4 → 2.0 migration went green on its first try, and I published the runs that
   didn't.
 - A PR conversation that refuses outside contributors before spending a single token.
 
-## What we learned
+## What I learned
 
 - Grounding beats memory: Nano answering from memory invented pydantic changes, and fetched, verified sources
   fixed that.
-- A cheap model is cheap only if its first attempt works. Most of our spend went to Ultra repairing failed
+- A cheap model is cheap only if its first attempt works. Most of my spend went to Ultra repairing failed
   edits, so better first edits are the biggest lever on cost.
 - Small prompt wordings can flip results completely.
 
